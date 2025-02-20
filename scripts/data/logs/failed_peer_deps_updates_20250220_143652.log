@@ -1,0 +1,7 @@
+[
+  {
+    "package": "reduce-reducers",
+    "error": "Error fetching peer dependencies: 200, message='Attempt to decode JSON with unexpected mimetype: application/octet-stream', url='https://registry.npmjs.org/reduce-reducers'",
+    "timestamp": "2025-02-20T14:36:14.785346"
+  }
+]
