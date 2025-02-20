@@ -1,5 +1,17 @@
 "use client";
 import { useState, useEffect } from "react";
+import LineGraph from "../components/LineGraph"; // Ensure this file exists
+
+// Helper to format numbers in a compact format
+function formatNumber(num: number): string {
+  if (num >= 1_000_000) {
+    return (num / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  }
+  if (num >= 1_000) {
+    return (num / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+  }
+  return num.toString();
+}
 
 export default function HomePage() {
   const showGrowth = false;
@@ -94,7 +106,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Dynamic Title (Now Below Filters) */}
+        {/* Dynamic Title (Below Filters) */}
         <h2 className="text-xl font-semibold mb-4 text-[#d4d4d4]">
           {generateTitle()}
         </h2>
@@ -106,9 +118,9 @@ export default function HomePage() {
               key={pkg._id}
               className="bg-[#252526] p-4 rounded shadow hover:shadow-lg transition border border-gray-600"
             >
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-                {/* Left: Name (Clickable) and Description */}
-                <div className="max-w-[40rem]">
+              <div className="flex flex-col md:flex-row justify-between items-center">
+                {/* Left: Name & Description and Stats */}
+                <div className="flex-1">
                   <h2 className="text-xl font-semibold mb-1">
                     <a
                       href={pkg.link}
@@ -122,37 +134,42 @@ export default function HomePage() {
                   <p className="text-gray-400 mb-2 text-sm">
                     {pkg.description}
                   </p>
-                </div>
-
-                {/* Right: Stats & Growth Score */}
-                <div className="flex flex-wrap items-center gap-4 md:justify-end">
-                  <div className="flex items-center gap-1 text-sm">
-                    <span className="font-medium text-gray-400">
-                      Downloads:
-                    </span>
-                    <span className="text-[#d4d4d4]">
-                      {pkg.downloads?.total}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 text-sm">
-                    <span className="font-medium text-gray-400">
-                      Dependents:
-                    </span>
-                    <span className="text-[#d4d4d4]">
-                      {pkg.dependent_packages_count}
-                    </span>
-                  </div>
-                  {pkg.avgGrowth !== undefined && showGrowth && (
+                  <div className="flex flex-wrap items-center gap-4">
                     <div className="flex items-center gap-1 text-sm">
                       <span className="font-medium text-gray-400">
-                        Growth Score:
+                        Downloads:
                       </span>
                       <span className="text-[#d4d4d4]">
-                        {pkg.avgGrowth.toFixed(2)}%
+                        {formatNumber(pkg.downloads?.total)}
                       </span>
                     </div>
-                  )}
+                    <div className="flex items-center gap-1 text-sm">
+                      <span className="font-medium text-gray-400">
+                        Dependents:
+                      </span>
+                      <span className="text-[#d4d4d4]">
+                        {formatNumber(pkg.dependent_packages_count)}
+                      </span>
+                    </div>
+                    {pkg.avgGrowth !== undefined && showGrowth && (
+                      <div className="flex items-center gap-1 text-sm">
+                        <span className="font-medium text-gray-400">
+                          Growth Score:
+                        </span>
+                        <span className="text-[#d4d4d4]">
+                          {pkg.avgGrowth.toFixed(2)}%
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Right: Line Graph */}
+                {pkg.downloads?.weekly_trends && (
+                  <div className="w-60 mt-4 md:mt-0">
+                    <LineGraph data={pkg.downloads.weekly_trends} />
+                  </div>
+                )}
               </div>
             </div>
           ))}
