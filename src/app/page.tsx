@@ -2,13 +2,13 @@
 import { useState, useEffect } from "react";
 
 export default function HomePage() {
-  const [sortBy, setSortBy] = useState("downloads");
-  const [dependsOn, setDependsOn] = useState("");
+  const showGrowth = false;
+  const [sortBy, setSortBy] = useState("growth"); // Default to "Trending"
+  const [dependsOn, setDependsOn] = useState("react"); // Default to "react"
   const [packages, setPackages] = useState<any[]>([]);
 
   useEffect(() => {
     async function fetchPackages() {
-      // Pass both sortBy and dependsOn as query parameters
       const res = await fetch(
         `/api/packages?sortBy=${sortBy}&dependsOn=${dependsOn}`,
       );
@@ -18,22 +18,48 @@ export default function HomePage() {
     fetchPackages();
   }, [sortBy, dependsOn]);
 
+  // Function to generate the dynamic title
+  const generateTitle = () => {
+    let title = `100 `;
+
+    if (sortBy === "growth") {
+      title += "trending ";
+    } else if (sortBy === "downloads") {
+      title += "most downloaded ";
+    } else if (sortBy === "dependents") {
+      title += "most relied-upon ";
+    }
+
+    title += "npm packages";
+    if (dependsOn) {
+      title += ` that depend on '${dependsOn}'`;
+    }
+
+    return title;
+  };
+
   return (
-    <div className="min-h-screen dark bg-gray-900">
-      <header className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-4 shadow-lg">
+    <div className="font-mono bg-[#1e1e1e] min-h-screen text-[#d4d4d4]">
+      {/* Header */}
+      <header className="bg-[#1e1e1e] text-[#d4d4d4] py-4 shadow-md border-b border-gray-700">
         <div className="container mx-auto px-4">
-          <h1 className="text-3xl font-bold">NPM Leaderboard</h1>
+          <h1 className="text-3xl font-bold text-[#569CD6]">NPM Leaderboard</h1>
           <p className="mt-1 text-md">
-            Discover the top npm packages by downloads, growth, and dependents.
+            Explore the most popular npm packages by downloads, growth, and
+            dependents.
           </p>
         </div>
       </header>
-      <main className="container mx-auto px-4 py-4">
-        <div className="flex flex-col md:flex-row items-center justify-between mb-4 space-y-2 md:space-y-0">
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-6">
+        {/* Filters */}
+        <div className="flex flex-col md:flex-row items-center justify-between mb-4">
+          {/* Sort Dropdown */}
           <div className="flex items-center space-x-2">
             <label
               htmlFor="sort"
-              className="text-md font-medium text-gray-700 dark:text-gray-300"
+              className="text-md font-medium text-[#d4d4d4]"
             >
               Sort by:
             </label>
@@ -41,17 +67,19 @@ export default function HomePage() {
               id="sort"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
+              className="p-2 bg-[#252526] border border-gray-600 rounded-md focus:ring-2 focus:ring-[#569CD6] text-[#d4d4d4]"
             >
               <option value="downloads">Most Downloaded</option>
-              <option value="growth">Fastest Growing</option>
+              <option value="growth">Trending</option>
               <option value="dependents">Most Dependents</option>
             </select>
           </div>
+
+          {/* Dependency Filter Input */}
           <div className="flex items-center space-x-2">
             <label
               htmlFor="dependsOn"
-              className="text-md font-medium text-gray-700 dark:text-gray-300"
+              className="text-md font-medium text-[#d4d4d4]"
             >
               Depends on:
             </label>
@@ -61,73 +89,79 @@ export default function HomePage() {
               value={dependsOn}
               onChange={(e) => setDependsOn(e.target.value)}
               placeholder="e.g., react"
-              className="p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
+              className="p-2 bg-[#252526] border border-gray-600 rounded-md focus:ring-2 focus:ring-[#569CD6] text-[#d4d4d4]"
             />
           </div>
         </div>
+
+        {/* Dynamic Title (Now Below Filters) */}
+        <h2 className="text-xl font-semibold mb-4 text-[#d4d4d4]">
+          {generateTitle()}
+        </h2>
+
+        {/* Package List */}
         <div className="grid grid-cols-1 gap-3">
           {packages.map((pkg) => (
             <div
               key={pkg._id}
-              className="bg-white dark:bg-gray-800 p-4 rounded shadow hover:shadow-md transition duration-300"
+              className="bg-[#252526] p-4 rounded shadow hover:shadow-lg transition border border-gray-600"
             >
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-                {/* Left: Name and Description */}
+                {/* Left: Name (Clickable) and Description */}
                 <div className="max-w-[40rem]">
-                  <h2 className="text-xl font-semibold mb-1 text-gray-800 dark:text-gray-100">
-                    {pkg.name}
+                  <h2 className="text-xl font-semibold mb-1">
+                    <a
+                      href={pkg.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#569CD6] hover:underline"
+                    >
+                      {pkg.name}
+                    </a>
                   </h2>
-                  <p className="text-gray-600 mb-2 text-sm dark:text-gray-300">
+                  <p className="text-gray-400 mb-2 text-sm">
                     {pkg.description}
                   </p>
                 </div>
-                {/* Right: Stats, Growth Score & Link */}
+
+                {/* Right: Stats & Growth Score */}
                 <div className="flex flex-wrap items-center gap-4 md:justify-end">
                   <div className="flex items-center gap-1 text-sm">
-                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                    <span className="font-medium text-gray-400">
                       Downloads:
                     </span>
-                    <span className="text-gray-900 dark:text-gray-100">
+                    <span className="text-[#d4d4d4]">
                       {pkg.downloads?.total}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 text-sm">
-                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                    <span className="font-medium text-gray-400">
                       Dependents:
                     </span>
-                    <span className="text-gray-900 dark:text-gray-100">
+                    <span className="text-[#d4d4d4]">
                       {pkg.dependent_packages_count}
                     </span>
                   </div>
-                  {pkg.avgGrowth !== undefined && (
+                  {pkg.avgGrowth !== undefined && showGrowth && (
                     <div className="flex items-center gap-1 text-sm">
-                      <span className="font-medium text-gray-700 dark:text-gray-300">
+                      <span className="font-medium text-gray-400">
                         Growth Score:
                       </span>
-                      <span className="text-gray-900 dark:text-gray-100">
+                      <span className="text-[#d4d4d4]">
                         {pkg.avgGrowth.toFixed(2)}%
                       </span>
                     </div>
                   )}
-                  <a
-                    href={pkg.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
-                  >
-                    View on npm
-                  </a>
                 </div>
               </div>
             </div>
           ))}
         </div>
       </main>
-      <footer className="bg-gray-200 dark:bg-gray-800 py-2">
-        <div className="container mx-auto text-center text-gray-700 dark:text-gray-300 text-sm">
-          &copy; {new Date().getFullYear()} NPM Leaderboard. All rights
-          reserved.
-        </div>
+
+      {/* Footer */}
+      <footer className="bg-[#1e1e1e] py-2 text-center text-sm text-[#d4d4d4]">
+        &copy; {new Date().getFullYear()} NPM Leaderboard. All rights reserved.
       </footer>
     </div>
   );

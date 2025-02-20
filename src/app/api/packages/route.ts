@@ -70,12 +70,39 @@ export async function GET(request: Request) {
                   },
                   as: "i",
                   in: {
-                    $multiply: [
-                      {
-                        $divide: [
+                    $cond: {
+                      if: {
+                        $eq: [
                           {
-                            $subtract: [
-                              { $arrayElemAt: ["$fullWeeklyDownloads", "$$i"] },
+                            $arrayElemAt: [
+                              "$fullWeeklyDownloads",
+                              { $subtract: ["$$i", 1] },
+                            ],
+                          },
+                          0,
+                        ],
+                      },
+                      then: 0, // If previous week downloads is 0, avoid division by zero
+                      else: {
+                        $multiply: [
+                          {
+                            $divide: [
+                              {
+                                $subtract: [
+                                  {
+                                    $arrayElemAt: [
+                                      "$fullWeeklyDownloads",
+                                      "$$i",
+                                    ],
+                                  },
+                                  {
+                                    $arrayElemAt: [
+                                      "$fullWeeklyDownloads",
+                                      { $subtract: ["$$i", 1] },
+                                    ],
+                                  },
+                                ],
+                              },
                               {
                                 $arrayElemAt: [
                                   "$fullWeeklyDownloads",
@@ -84,16 +111,10 @@ export async function GET(request: Request) {
                               },
                             ],
                           },
-                          {
-                            $arrayElemAt: [
-                              "$fullWeeklyDownloads",
-                              { $subtract: ["$$i", 1] },
-                            ],
-                          },
+                          100,
                         ],
                       },
-                      100,
-                    ],
+                    },
                   },
                 },
               },
