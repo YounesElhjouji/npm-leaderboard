@@ -92,16 +92,4 @@ For any inquiries or feature requests, feel free to reach out!
 - Display trending packages 📊
 - Improve UI with more animations ✨
 
-```
 
----
-
-### **What's Included?**
-✔ **Project Overview**
-✔ **Features List**
-✔ **Setup & Installation Guide**
-✔ **License (MIT)**
-✔ **Future Improvements**
-
-Feel free to **replace `YOUR_GITHUB_USERNAME` and `YOUR_NAME`** with your actual details before committing it! 🚀
-```
