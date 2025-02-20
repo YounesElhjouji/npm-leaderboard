@@ -28,7 +28,7 @@ const Header = () => {
           </p>
           <p>
             <a
-              href="https://github.com/USERNAME/REPO"
+              href="https://github.com/YounesElhjouji/npm-leaderboard"
               className="text-[#569CD6] hover:underline"
               target="_blank"
               rel="noopener noreferrer"
