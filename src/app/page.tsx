@@ -32,7 +32,7 @@ export default function HomePage() {
 
   // Function to generate the dynamic title
   const generateTitle = () => {
-    let title = `100 `;
+    let title = `${packages.length} `;
 
     if (sortBy === "growth") {
       title += "trending ";
