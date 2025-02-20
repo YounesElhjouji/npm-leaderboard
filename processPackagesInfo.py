@@ -14,12 +14,77 @@ class NPMPackageProcessor:
         self.output_file = output_file
         self.registry_url = "https://registry.npmjs.org"
         self.downloads_url = "https://api.npmjs.org/downloads"
+        self.ecosystem_url = (
+            "https://packages.ecosyste.ms/api/v1/registries/npmjs.org/packages"
+        )
         self.semaphore = asyncio.Semaphore(10)  # Limit concurrent requests
+
+    async def fetch_ecosystem_stats(
+        self, session: aiohttp.ClientSession, package_name: str
+    ) -> Dict:
+        """Fetch total downloads and dependents from ecosyste.ms."""
+        try:
+            async with session.get(f"{self.ecosystem_url}/{package_name}") as response:
+                if response.status != 200:
+                    return {
+                        "error": f"Failed to fetch ecosystem stats: {response.status}"
+                    }
+                data = await response.json()
+                return {
+                    "total_downloads": data.get("downloads", 0),
+                    "dependent_count": data.get("dependent_packages_count", 0),
+                    "error": None,
+                }
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def fetch_weekly_trends(
+        self, session: aiohttp.ClientSession, package_name: str
+    ) -> Dict:
+        """Fetch weekly download trends for the last 2 months."""
+        try:
+            end_date = datetime.datetime.now()
+            start_date = end_date - datetime.timedelta(days=60)
+            date_range = (
+                f"{start_date.strftime('%Y-%m-%d')}:{end_date.strftime('%Y-%m-%d')}"
+            )
+
+            downloads_url = f"{self.downloads_url}/range/{date_range}/{package_name}"
+            async with session.get(downloads_url) as response:
+                if response.status != 200:
+                    return {
+                        "error": f"Failed to fetch download stats: {response.status}"
+                    }
+                download_data = await response.json()
+
+            # Calculate weekly downloads
+            downloads_by_week = []
+            current_week = []
+            for day in download_data.get("downloads", []):
+                current_week.append(day["downloads"])
+                if len(current_week) == 7:
+                    downloads_by_week.append(
+                        {"week_ending": day["day"], "downloads": sum(current_week)}
+                    )
+                    current_week = []
+
+            # Add remaining days as partial week if any
+            if current_week:
+                downloads_by_week.append(
+                    {
+                        "week_ending": download_data["downloads"][-1]["day"],
+                        "downloads": sum(current_week),
+                    }
+                )
+
+            return {"weekly_trends": downloads_by_week, "error": None}
+        except Exception as e:
+            return {"error": str(e)}
 
     async def fetch_package_info(
         self, session: aiohttp.ClientSession, package_name: str
     ) -> Dict:
-        """Fetch basic info and downloads for a single package."""
+        """Fetch all package information."""
         try:
             async with self.semaphore:
                 # Get package metadata
@@ -33,24 +98,19 @@ class NPMPackageProcessor:
                         )
                     data = await response.json()
 
-                # Calculate dates for 6-month download period
-                end_date = datetime.datetime.now()
-                start_date = end_date - datetime.timedelta(days=180)
-                date_range = (
-                    f"{start_date.strftime('%Y-%m-%d')}:{end_date.strftime('%Y-%m-%d')}"
+                # Get ecosystem statistics
+                ecosystem_stats = await self.fetch_ecosystem_stats(
+                    session, package_name
                 )
+                if ecosystem_stats.get("error"):
+                    return self._create_error_entry(
+                        package_name, ecosystem_stats["error"]
+                    )
 
-                # Get download statistics
-                downloads_url = (
-                    f"{self.downloads_url}/range/{date_range}/{package_name}"
-                )
-                async with session.get(downloads_url) as response:
-                    if response.status != 200:
-                        return self._create_error_entry(
-                            package_name,
-                            f"Failed to fetch download stats: {response.status}",
-                        )
-                    download_data = await response.json()
+                # Get weekly download trends
+                weekly_stats = await self.fetch_weekly_trends(session, package_name)
+                if weekly_stats.get("error"):
+                    return self._create_error_entry(package_name, weekly_stats["error"])
 
                 # Get latest version info
                 latest_version = data.get("dist-tags", {}).get("latest")
@@ -61,17 +121,16 @@ class NPMPackageProcessor:
 
                 latest_data = data["versions"][latest_version]
 
-                # Calculate total downloads
-                total_downloads = sum(
-                    day["downloads"] for day in download_data.get("downloads", [])
-                )
-
                 return {
                     "name": package_name,
                     "description": data.get("description", ""),
                     "link": f"https://www.npmjs.com/package/{package_name}",
                     "dependencies": list(latest_data.get("dependencies", {}).keys()),
-                    "downloads_last_6_months": total_downloads,
+                    "downloads": {
+                        "total": ecosystem_stats["total_downloads"],
+                        "weekly_trends": weekly_stats["weekly_trends"],
+                    },
+                    "dependent_packages_count": ecosystem_stats["dependent_count"],
                     "latest_version": latest_version,
                     "error": None,
                 }
@@ -86,7 +145,8 @@ class NPMPackageProcessor:
             "description": "",
             "link": "",
             "dependencies": [],
-            "downloads_last_6_months": 0,
+            "downloads": {"total": 0, "weekly_trends": []},
+            "dependent_packages_count": 0,
             "latest_version": "",
             "error": error_msg,
         }
@@ -116,8 +176,8 @@ class NPMPackageProcessor:
 
 
 def main():
-    input_file = "package_names.json"
-    output_file = "package_info.json"
+    input_file = "data/package_names.json"
+    output_file = "data/package_info.json"
 
     # Create processor and run
     processor = NPMPackageProcessor(input_file, output_file)
