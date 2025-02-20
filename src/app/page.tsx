@@ -8,15 +8,25 @@ import PackageList from "../components/PackageList";
 export default function HomePage() {
   const [sortBy, setSortBy] = useState<SortBy>("growth");
   const [dependsOn, setDependsOn] = useState<string>("react");
+  const [debouncedDependsOn, setDebouncedDependsOn] =
+    useState<string>(dependsOn);
   const [packages, setPackages] = useState<NPMPackage[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Debounce the dependsOn value so that API calls don't happen on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedDependsOn(dependsOn);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [dependsOn]);
 
   useEffect(() => {
     async function fetchPackages() {
       setLoading(true);
       try {
         const res = await fetch(
-          `/api/packages?sortBy=${sortBy}&dependsOn=${dependsOn}`,
+          `/api/packages?sortBy=${sortBy}&dependsOn=${debouncedDependsOn}`,
         );
         const data = await res.json();
         setPackages(data.packages);
@@ -27,12 +37,11 @@ export default function HomePage() {
       }
     }
     fetchPackages();
-  }, [sortBy, dependsOn]);
+  }, [sortBy, debouncedDependsOn]);
 
   // Function to generate the dynamic title
   const generateTitle = () => {
     let title = `${packages.length} `;
-
     if (sortBy === "growth") {
       title += "trending ";
     } else if (sortBy === "downloads") {
@@ -40,12 +49,10 @@ export default function HomePage() {
     } else if (sortBy === "dependents") {
       title += "most relied-upon ";
     }
-
     title += "npm packages";
-    if (dependsOn) {
-      title += ` that depend on '${dependsOn}'`;
+    if (debouncedDependsOn) {
+      title += ` that depend on '${debouncedDependsOn}'`;
     }
-
     return title;
   };
 
