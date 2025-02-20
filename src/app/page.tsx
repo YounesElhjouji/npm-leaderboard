@@ -1,100 +1,133 @@
-import Image from "next/image";
+"use client";
+import { useState, useEffect } from "react";
 
-export default function Home() {
+export default function HomePage() {
+  const [sortBy, setSortBy] = useState("downloads");
+  const [dependsOn, setDependsOn] = useState("");
+  const [packages, setPackages] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function fetchPackages() {
+      // Pass both sortBy and dependsOn as query parameters
+      const res = await fetch(
+        `/api/packages?sortBy=${sortBy}&dependsOn=${dependsOn}`,
+      );
+      const data = await res.json();
+      setPackages(data.packages);
+    }
+    fetchPackages();
+  }, [sortBy, dependsOn]);
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+    <div className="min-h-screen dark bg-gray-900">
+      <header className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-4 shadow-lg">
+        <div className="container mx-auto px-4">
+          <h1 className="text-3xl font-bold">NPM Leaderboard</h1>
+          <p className="mt-1 text-md">
+            Discover the top npm packages by downloads, growth, and dependents.
+          </p>
+        </div>
+      </header>
+      <main className="container mx-auto px-4 py-4">
+        <div className="flex flex-col md:flex-row items-center justify-between mb-4 space-y-2 md:space-y-0">
+          <div className="flex items-center space-x-2">
+            <label
+              htmlFor="sort"
+              className="text-md font-medium text-gray-700 dark:text-gray-300"
+            >
+              Sort by:
+            </label>
+            <select
+              id="sort"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
+            >
+              <option value="downloads">Most Downloaded</option>
+              <option value="growth">Fastest Growing</option>
+              <option value="dependents">Most Dependents</option>
+            </select>
+          </div>
+          <div className="flex items-center space-x-2">
+            <label
+              htmlFor="dependsOn"
+              className="text-md font-medium text-gray-700 dark:text-gray-300"
+            >
+              Depends on:
+            </label>
+            <input
+              type="text"
+              id="dependsOn"
+              value={dependsOn}
+              onChange={(e) => setDependsOn(e.target.value)}
+              placeholder="e.g., react"
+              className="p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3">
+          {packages.map((pkg) => (
+            <div
+              key={pkg._id}
+              className="bg-white dark:bg-gray-800 p-4 rounded shadow hover:shadow-md transition duration-300"
+            >
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
+                {/* Left: Name and Description */}
+                <div className="max-w-[40rem]">
+                  <h2 className="text-xl font-semibold mb-1 text-gray-800 dark:text-gray-100">
+                    {pkg.name}
+                  </h2>
+                  <p className="text-gray-600 mb-2 text-sm dark:text-gray-300">
+                    {pkg.description}
+                  </p>
+                </div>
+                {/* Right: Stats, Growth Score & Link */}
+                <div className="flex flex-wrap items-center gap-4 md:justify-end">
+                  <div className="flex items-center gap-1 text-sm">
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      Downloads:
+                    </span>
+                    <span className="text-gray-900 dark:text-gray-100">
+                      {pkg.downloads?.total}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-sm">
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      Dependents:
+                    </span>
+                    <span className="text-gray-900 dark:text-gray-100">
+                      {pkg.dependent_packages_count}
+                    </span>
+                  </div>
+                  {pkg.avgGrowth !== undefined && (
+                    <div className="flex items-center gap-1 text-sm">
+                      <span className="font-medium text-gray-700 dark:text-gray-300">
+                        Growth Score:
+                      </span>
+                      <span className="text-gray-900 dark:text-gray-100">
+                        {pkg.avgGrowth.toFixed(2)}%
+                      </span>
+                    </div>
+                  )}
+                  <a
+                    href={pkg.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                  >
+                    View on npm
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+      <footer className="bg-gray-200 dark:bg-gray-800 py-2">
+        <div className="container mx-auto text-center text-gray-700 dark:text-gray-300 text-sm">
+          &copy; {new Date().getFullYear()} NPM Leaderboard. All rights
+          reserved.
+        </div>
       </footer>
     </div>
   );
