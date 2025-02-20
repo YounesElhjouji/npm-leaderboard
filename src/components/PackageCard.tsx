@@ -19,8 +19,8 @@ const formatNumber = (num: number): string => {
 const PackageCard = ({ pkg, showGrowth = false }: PackageCardProps) => {
   return (
     <div className="bg-[#252526] p-4 rounded shadow hover:shadow-lg transition border border-gray-600">
-      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-        {/* Left: Name & Description and Stats */}
+      <div className="flex flex-col md:flex-row justify-between items-start gap-6">
+        {/* Left: Name, Description, and Stats */}
         <div className="flex-1">
           <h2 className="text-xl font-semibold mb-1">
             <a
@@ -32,7 +32,9 @@ const PackageCard = ({ pkg, showGrowth = false }: PackageCardProps) => {
               {pkg.name}
             </a>
           </h2>
-          <p className="text-gray-400 mb-2 text-sm">{pkg.description}</p>
+          <p className="text-gray-400 mb-2 text-sm whitespace-pre-wrap">
+            {pkg.description}
+          </p>
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-1 text-sm">
               <span className="font-medium text-gray-400">Downloads:</span>
@@ -59,7 +61,7 @@ const PackageCard = ({ pkg, showGrowth = false }: PackageCardProps) => {
 
         {/* Right: Line Graph */}
         {pkg.downloads?.weekly_trends && (
-          <div className="w-60 mt-4 md:mt-0">
+          <div className="w-full md:w-60 mt-4 md:mt-0">
             <LineGraph data={pkg.downloads.weekly_trends} />
           </div>
         )}

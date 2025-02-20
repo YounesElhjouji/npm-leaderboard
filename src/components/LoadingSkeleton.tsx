@@ -1,7 +1,7 @@
 import React from "react";
 
 const LoadingSkeleton = () => {
-  // Create an array of 5 items for skeleton placeholders
+  // Create an array of 6 items for skeleton placeholders
   const skeletonCards = Array(6).fill(null);
 
   return (
@@ -11,7 +11,7 @@ const LoadingSkeleton = () => {
           key={index}
           className="bg-[#252526] p-4 rounded shadow border border-gray-600"
         >
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex flex-col md:flex-row justify-between items-start gap-6">
             {/* Left side content */}
             <div className="flex-1">
               {/* Package name skeleton */}
@@ -31,7 +31,7 @@ const LoadingSkeleton = () => {
             </div>
 
             {/* Right side - Graph skeleton */}
-            <div className="w-60 mt-4 md:mt-0 h-24 bg-gray-600 rounded"></div>
+            <div className="w-full md:w-60 mt-4 md:mt-0 h-24 bg-gray-600 rounded"></div>
           </div>
         </div>
       ))}
