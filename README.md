@@ -91,5 +91,3 @@ For any inquiries or feature requests, feel free to reach out!
 - Add package detail pages
 - Display trending packages 📊
 - Improve UI with more animations ✨
-
-
