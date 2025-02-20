@@ -1,13 +1,32 @@
 import { NextResponse } from "next/server";
 import clientPromise from "../../../../lib/mongodb";
+import { Document, SortDirection } from "mongodb";
+
+interface WeeklyTrend {
+  week_ending: string;
+  downloads: number;
+}
+
+interface NPMPackage {
+  _id: unknown;
+  downloads?: {
+    total: number;
+    weekly_trends: WeeklyTrend[];
+  };
+  dependent_packages_count: number;
+  avgGrowth?: number;
+  link: string;
+  name: string;
+  description: string;
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const sortBy = searchParams.get("sortBy") || "downloads";
   const dependsOn = searchParams.get("dependsOn") || "";
 
-  // Build filter query: if a dependency is specified, filter for packages that include it.
-  const query: any = {};
+  // Instead of "any", we use a generic object type for our query.
+  const query: Record<string, unknown> = {};
   if (dependsOn) {
     query.$or = [
       { dependencies: { $in: [dependsOn] } },
@@ -15,7 +34,7 @@ export async function GET(request: Request) {
     ];
   }
 
-  let sortCriteria = {};
+  let sortCriteria: Record<string, number> = {};
   if (sortBy === "downloads") {
     sortCriteria = { "downloads.total": -1 };
   } else if (sortBy === "dependents") {
@@ -25,15 +44,13 @@ export async function GET(request: Request) {
   const client = await clientPromise;
   const db = client.db("npm-leaderboard");
 
-  let packages;
+  let packages: NPMPackage[] = [];
   if (sortBy === "growth") {
-    // Aggregation pipeline to compute average weekly percentage growth excluding the last week.
-    const pipeline = [];
+    const pipeline: Document[] = [];
     if (Object.keys(query).length > 0) {
       pipeline.push({ $match: query });
     }
     pipeline.push(
-      // Create an array of weekly download numbers.
       {
         $addFields: {
           weeklyDownloads: {
@@ -45,7 +62,6 @@ export async function GET(request: Request) {
           },
         },
       },
-      // Exclude the last week (which may have fewer than 7 days)
       {
         $addFields: {
           fullWeeklyDownloads: {
@@ -57,7 +73,6 @@ export async function GET(request: Request) {
           },
         },
       },
-      // Compute percentage growth for each full week relative to the previous week.
       {
         $addFields: {
           growthPercentages: {
@@ -82,7 +97,7 @@ export async function GET(request: Request) {
                           0,
                         ],
                       },
-                      then: 0, // If previous week downloads is 0, avoid division by zero
+                      then: 0,
                       else: {
                         $multiply: [
                           {
@@ -123,7 +138,6 @@ export async function GET(request: Request) {
           },
         },
       },
-      // Calculate the average percentage growth.
       {
         $addFields: {
           avgGrowth: {
@@ -138,14 +152,19 @@ export async function GET(request: Request) {
       { $sort: { avgGrowth: -1 } },
       { $limit: 100 },
     );
-    packages = await db.collection("packages").aggregate(pipeline).toArray();
+
+    // Use type assertion here to let TypeScript know the result matches NPMPackage[]
+    packages = (await db
+      .collection("packages")
+      .aggregate(pipeline)
+      .toArray()) as NPMPackage[];
   } else {
-    packages = await db
+    packages = (await db
       .collection("packages")
       .find(query)
-      .sort(sortCriteria)
+      .sort(sortCriteria as unknown as [string, SortDirection])
       .limit(100)
-      .toArray();
+      .toArray()) as NPMPackage[];
   }
 
   return NextResponse.json({ packages });

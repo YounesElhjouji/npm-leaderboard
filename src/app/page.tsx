@@ -1,6 +1,25 @@
 "use client";
 import { useState, useEffect } from "react";
-import LineGraph from "../components/LineGraph"; // Ensure this file exists
+import LineGraph from "../components/LineGraph";
+
+// Define types for the package data
+interface WeeklyTrend {
+  week_ending: string;
+  downloads: number;
+}
+
+interface NPMPackage {
+  _id: string;
+  name: string;
+  description: string;
+  link: string;
+  downloads?: {
+    total: number;
+    weekly_trends: WeeklyTrend[];
+  };
+  dependent_packages_count: number;
+  avgGrowth?: number;
+}
 
 // Helper to format numbers in a compact format
 function formatNumber(num: number): string {
@@ -15,9 +34,11 @@ function formatNumber(num: number): string {
 
 export default function HomePage() {
   const showGrowth = false;
-  const [sortBy, setSortBy] = useState("growth"); // Default to "Trending"
-  const [dependsOn, setDependsOn] = useState("react"); // Default to "react"
-  const [packages, setPackages] = useState<any[]>([]);
+  const [sortBy, setSortBy] = useState<"downloads" | "growth" | "dependents">(
+    "growth",
+  );
+  const [dependsOn, setDependsOn] = useState<string>("react");
+  const [packages, setPackages] = useState<NPMPackage[]>([]);
 
   useEffect(() => {
     async function fetchPackages() {
@@ -78,7 +99,11 @@ export default function HomePage() {
             <select
               id="sort"
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
+              onChange={(e) =>
+                setSortBy(
+                  e.target.value as "downloads" | "growth" | "dependents",
+                )
+              }
               className="p-2 bg-[#252526] border border-gray-600 rounded-md focus:ring-2 focus:ring-[#569CD6] text-[#d4d4d4]"
             >
               <option value="downloads">Most Downloaded</option>
@@ -140,7 +165,7 @@ export default function HomePage() {
                         Downloads:
                       </span>
                       <span className="text-[#d4d4d4]">
-                        {formatNumber(pkg.downloads?.total)}
+                        {formatNumber(pkg.downloads?.total ?? 0)}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 text-sm">
