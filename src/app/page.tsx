@@ -77,7 +77,16 @@ export default function HomePage() {
       </main>
 
       <footer className="bg-[#1e1e1e] py-2 text-center text-sm text-[#d4d4d4]">
-        &copy; {new Date().getFullYear()} NPM Leaderboard. All rights reserved.
+        Made with ❤️ by{" "}
+        <a
+          href="https://younes.elhjouji.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[#569CD6] hover:underline"
+        >
+          Younes El Hjouji
+        </a>
+        . Enjoy exploring!
       </footer>
     </div>
   );
