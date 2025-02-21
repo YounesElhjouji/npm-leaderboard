@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bgGradient1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#030303"/>
+      <stop offset="100%" stop-color="#121212"/>
+    </linearGradient>
+    <style>
+      .mono {
+        font-family: 'Courier New', Courier, monospace;
+        font-weight: bold;
+      }
+    </style>
+  </defs>
+  
+  <!-- Circular background with dark gradient -->
+  <circle cx="32" cy="32" r="30" fill="url(#bgGradient1)" />
+  
+  <!-- Lower-case "n" in monospaced font -->
+  <text x="32" y="50" text-anchor="middle" class="mono" font-size="72" fill="#FF79C6">
+    n
+  </text>
+  
+  <!-- Upward arrow, moved slightly up -->
+  <path d="M44 18 L48 12 L52 18" fill="none" stroke="#50FA7B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
