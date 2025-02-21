@@ -144,11 +144,6 @@ class NPMPackageProcessor:
     ):
         """Fetch package info, enrich it with ecosystem stats, weekly trends, and peer dependencies, then store in MongoDB."""
         try:
-            # Skip if package already exists in the database
-            if self.collection.find_one({"name": package_name}):
-                print(f"Package {package_name} already exists in database, skipping...")
-                return
-
             async with self.semaphore:
                 # Fetch package metadata from npm registry
                 async with session.get(
@@ -186,7 +181,7 @@ class NPMPackageProcessor:
                 "description": data.get("description", ""),
                 "link": f"https://www.npmjs.com/package/{package_name}",
                 "dependencies": list(latest_data.get("dependencies", {}).keys()),
-                "peerDependencies": peer_dependencies,  # Newly added field
+                "peerDependencies": peer_dependencies,
                 "downloads": {
                     "total": ecosystem_stats["total_downloads"],
                     "weekly_trends": weekly_stats["weekly_trends"],
@@ -208,29 +203,40 @@ class NPMPackageProcessor:
 
     async def process_packages(self):
         """Process all packages from the input file."""
-        # Read package names from input file
+        # Load package names from input file
         with open(self.input_file, "r") as f:
             package_names: List[str] = json.load(f)
 
-        print(f"Starting to process {len(package_names)} packages...")
+        print(f"Total packages loaded from file: {len(package_names)}")
+
+        # Retrieve all package names already stored in MongoDB
+        existing_packages = set(
+            doc["name"] for doc in self.collection.find({}, {"name": 1})
+        )
+        print(f"Already processed packages in DB: {len(existing_packages)}")
+
+        # Remove packages that are already processed
+        to_process = [name for name in package_names if name not in existing_packages]
+        print(f"Remaining packages to process: {len(to_process)}")
 
         # Process each package asynchronously
         async with aiohttp.ClientSession() as session:
             tasks = [
-                self.fetch_and_store_package_info(session, name)
-                for name in package_names
+                self.fetch_and_store_package_info(session, name) for name in to_process
             ]
             await asyncio.gather(*tasks)
 
         # Save log of failed packages (if any)
         self.save_failed_packages_log()
 
-        # Print a summary
+        # Print summary
         total_failed = len(self.failed_packages)
         print(f"\nProcessing complete:")
-        print(f"Total packages processed: {len(package_names)}")
+        print(f"Total packages in input: {len(package_names)}")
+        print(f"Already processed: {len(existing_packages)}")
+        print(f"Processed in this run: {len(to_process)}")
         print(f"Failed: {total_failed}")
-        print(f"Successful: {len(package_names) - total_failed}")
+        print(f"Successful: {len(to_process) - total_failed}")
 
 
 def main():
