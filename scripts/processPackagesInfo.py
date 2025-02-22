@@ -206,6 +206,7 @@ class NPMPackageProcessor:
     async def process_packages(self):
         """Process all packages from the input file."""
         # Load package names from input file
+        print(f"Loading packages from files {self.input_file}")
         with open(self.input_file, "r") as f:
             package_names: List[str] = json.load(f)
 
