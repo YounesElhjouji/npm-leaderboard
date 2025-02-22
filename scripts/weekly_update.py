@@ -130,8 +130,8 @@ def main():
     # Run each step and check for failures
     steps = [
         ("fetch_packages", run_fetch_packages),
-        ("update_existing", run_update_existing_packages),
         ("process_new", run_process_new_packages),
+        ("update_existing", run_update_existing_packages),
     ]
 
     for step_name, step_func in steps:
