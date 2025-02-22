@@ -5,6 +5,7 @@ from datetime import datetime
 
 from .fetchPackagesWithInfo import TopPackagesFetcher
 from .processPackagesInfo import NPMPackageProcessor
+from .syncMetadata import SyncMetadata  # Import the sync metadata module
 from .updateExistingPackages import NPMPackageUpdater
 
 
@@ -50,6 +51,10 @@ async def main():
     print(
         f"Completed update_existing_packages at {step_end.isoformat()} (duration: {(step_end - step_start).total_seconds():.2f}s)"
     )
+
+    # Update the last sync date in the database
+    sync = SyncMetadata()
+    sync.update_last_sync()
 
     overall_elapsed = time.time() - overall_start
     print(f"Weekly update complete in {overall_elapsed:.2f} seconds.")

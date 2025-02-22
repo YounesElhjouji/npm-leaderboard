@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { SortBy, NPMPackage } from "../types";
-import Header from "../components/Header";
 import Filters from "../components/Filters";
 import PackageList from "../components/PackageList";
 
@@ -57,8 +56,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#1e1e1e] font-mono text-[#d4d4d4]">
-      <Header />
+    <div className="min-h-screen bg-[#1e1e1e] text-[#d4d4d4]">
 
       <main className="container mx-auto px-4 py-6">
         <Filters
