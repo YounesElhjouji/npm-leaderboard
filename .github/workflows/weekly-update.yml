@@ -27,6 +27,6 @@ jobs:
           pip install aiohttp pymongo
           
       - name: Run weekly update
-        run: python -m scripts.weekly_update
+        run: python -u -m scripts.weekly_update
         timeout-minutes: 330  # 5.5 hours for the script itself
         
