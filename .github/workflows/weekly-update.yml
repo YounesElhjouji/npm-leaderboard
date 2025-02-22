@@ -8,21 +8,25 @@ on:
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 hours total timeout
     env:
-      MONGO_URI: ${{ secrets.MONGO_URI }}  # Use secret in environment variable
+      MONGO_URI: ${{ secrets.MONGO_URI }}
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
+        
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
-
+          
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install aiohttp pymongo
-
+          
       - name: Run weekly update
-        run: python scripts/weekly_update.py
+        run: python -u -m scripts.weekly_update
+        timeout-minutes: 330  # 5.5 hours for the script itself
+        

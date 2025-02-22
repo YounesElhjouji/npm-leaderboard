@@ -3,6 +3,7 @@
 # dependencies
 *node_modules*
 *venv*
+*__pycache__*
 /.pnp
 .pnp.*
 .yarn/*
@@ -42,3 +43,4 @@ yarn-error.log*
 next-env.d.ts
 
 # my stuff
+*ephemeral.json
