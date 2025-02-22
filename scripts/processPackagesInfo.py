@@ -224,7 +224,7 @@ class NPMPackageProcessor:
 
             # Insert document into MongoDB
             self.collection.insert_one(package_doc)
-            print(f"✓ Successfully processed: {package_name}")
+            # print(f"✓ Successfully processed: {package_name}")
             self.successful_in_current_batch += 1
 
         except Exception as e:

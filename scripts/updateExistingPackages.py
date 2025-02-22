@@ -139,7 +139,7 @@ class NPMPackageUpdater:
                 "last_updated": datetime.datetime.now(),
             }
             self.collection.update_one({"name": package_name}, {"$set": update_fields})
-            print(f"✓ Updated package: {package_name}")
+            # print(f"✓ Updated package: {package_name}")
             self.successful_in_current_batch += 1
         except Exception as e:
             error_msg = f"✗ Error updating {package_name}: {str(e)}"
