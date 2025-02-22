@@ -88,6 +88,4 @@ For any inquiries or feature requests, feel free to reach out!
 
 ### ✅ **What's Next?**
 
-- Add package detail pages
-- Display trending packages 📊
-- Improve UI with more animations ✨
+That's up to you! You request it, I work on it.
