@@ -1,6 +1,8 @@
 import asyncio
 import datetime
 import json
+import os
+import time
 from pathlib import Path
 
 import aiohttp
@@ -16,7 +18,7 @@ class NPMPackageUpdater:
         )
         self.semaphore = asyncio.Semaphore(10)
 
-        self.client = MongoClient("mongodb://localhost:27017/")
+        self.client = MongoClient(os.getenv("MONGO_URI", "mongodb://localhost:27017/"))
         self.db = self.client["npm-leaderboard"]
         self.collection = self.db["packages"]
 
@@ -145,10 +147,12 @@ class NPMPackageUpdater:
 
     async def update_all_packages(self):
         packages = list(self.collection.find({}, {"name": 1}))
-        print(f"Updating {len(packages)} existing packages...")
+        total_packages = len(packages)
+        print(f"Updating {total_packages} existing packages...")
         async with aiohttp.ClientSession() as session:
             tasks = [self.update_package_info(session, pkg) for pkg in packages]
             await asyncio.gather(*tasks)
+
         if self.failed_updates:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             log_file = self.log_dir / f"failed_updates_{timestamp}.log"
@@ -156,10 +160,20 @@ class NPMPackageUpdater:
                 json.dump(self.failed_updates, f, indent=2)
             print(f"Failed updates log saved to: {log_file}")
 
+        total_failed = len(self.failed_updates)
+        total_successful = total_packages - total_failed
+        print("\nUpdate complete:")
+        print(f"Total packages processed: {total_packages}")
+        print(f"Failed: {total_failed}")
+        print(f"Successful: {total_successful}")
+
 
 def main():
     updater = NPMPackageUpdater()
+    start_time = time.time()
     asyncio.run(updater.update_all_packages())
+    elapsed = time.time() - start_time
+    print(f"\nTotal execution time: {elapsed:.2f} seconds")
 
 
 if __name__ == "__main__":
