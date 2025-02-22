@@ -6,7 +6,6 @@ import time
 
 def run_fetch_packages():
     print("Fetching top 20k npm packages...")
-    # Assuming you modified fetchPackagesWithInfo.py to fetch 20k packages.
     result = subprocess.run(
         [
             "python",
@@ -15,7 +14,8 @@ def run_fetch_packages():
             "0",
             "--output",
             "data/package_names_ephemeral.json",
-        ]
+        ],
+        cwd="scripts",  # Change directory to 'scripts' before executing the command
     )
     if result.returncode != 0:
         print("Failed to fetch top packages")
@@ -30,7 +30,8 @@ def run_process_new_packages():
             "processPackagesInfo.py",
             "--input",
             "data/package_names_ephemeral.json",
-        ]
+        ],
+        cwd="scripts",
     )
     if result.returncode != 0:
         print("Failed to process new packages")
@@ -39,7 +40,7 @@ def run_process_new_packages():
 
 def run_update_existing_packages():
     print("Updating existing packages...")
-    result = subprocess.run(["python", "updateExistingPackages.py"])
+    result = subprocess.run(["python", "updateExistingPackages.py"], cwd="scripts")
     if result.returncode != 0:
         print("Failed to update existing packages")
         sys.exit(1)
