@@ -57,7 +57,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="font-mono bg-[#1e1e1e] min-h-screen text-[#d4d4d4]">
+    <div className="min-h-screen bg-[#1e1e1e] font-mono text-[#d4d4d4]">
       <Header />
 
       <main className="container mx-auto px-4 py-6">
@@ -69,7 +69,7 @@ export default function HomePage() {
           onDependsOnChange={setDependsOn}
         />
 
-        <h2 className="text-xl font-semibold mb-4 text-[#d4d4d4]">
+        <h2 className="mb-4 text-xl font-semibold text-[#d4d4d4]">
           {loading ? "Loading packages..." : generateTitle()}
         </h2>
 

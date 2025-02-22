@@ -17,6 +17,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/npm.ico" />
+      </head>
+
       <body className={`${geistMono.variable} antialiased`}>{children}</body>
     </html>
   );

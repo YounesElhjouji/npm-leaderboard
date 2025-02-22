@@ -1,0 +1,27 @@
+[
+  {
+    "package": "@contenthook/browser",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-21T22:48:45.337586"
+  },
+  {
+    "package": "@deca-ui/react",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-21T22:48:45.401738"
+  },
+  {
+    "package": "@contenthook/node",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-21T22:48:45.452802"
+  },
+  {
+    "package": "@contenthook/cli",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-21T22:48:45.453490"
+  },
+  {
+    "package": "contenthook",
+    "error": "Failed to fetch download stats: 404",
+    "timestamp": "2025-02-21T22:48:47.272349"
+  }
+]

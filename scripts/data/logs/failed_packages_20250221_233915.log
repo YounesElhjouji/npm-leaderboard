@@ -1,0 +1,42 @@
+[
+  {
+    "package": "@ngdaddy/eslint-plugin",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-21T23:21:02.653824"
+  },
+  {
+    "package": "@deca-ui/react",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-21T23:24:12.407918"
+  },
+  {
+    "package": "@contenthook/browser",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-21T23:24:16.224510"
+  },
+  {
+    "package": "@zitterorg/aspernatur-pariatur-occaecati",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-21T23:24:46.607491"
+  },
+  {
+    "package": "@contenthook/node",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-21T23:25:40.604398"
+  },
+  {
+    "package": "@ngdaddy/eslint-config",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-21T23:28:13.659389"
+  },
+  {
+    "package": "@contenthook/cli",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-21T23:29:25.812676"
+  },
+  {
+    "package": "contenthook",
+    "error": "Failed to fetch download stats: 404",
+    "timestamp": "2025-02-21T23:38:33.049692"
+  }
+]
