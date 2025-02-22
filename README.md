@@ -48,7 +48,7 @@ npm install
 Create a `.env.local` file in the root directory:
 
 ```sh
-MONGODB_URI=mongodb://localhost:27017/npm-leaderboard
+MONGODB_URI=mongodb://localhost:27017/
 ```
 
 (Replace with your actual MongoDB connection string if hosted remotely.)
