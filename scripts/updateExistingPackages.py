@@ -10,7 +10,7 @@ from pymongo import MongoClient
 
 
 class NPMPackageUpdater:
-    def __init__(self):
+    def __init__(self, batch_size: int = 100):
         self.registry_url = "https://registry.npmjs.org"
         self.downloads_url = "https://api.npmjs.org/downloads"
         self.ecosystem_url = (
@@ -25,6 +25,12 @@ class NPMPackageUpdater:
         self.log_dir = Path("data/logs")
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.failed_updates = []
+
+        self.batch_size = batch_size
+        self.total_processed = 0
+        self.batch_start_time = None
+        self.successful_in_current_batch = 0
+        self.failed_in_current_batch = 0
 
     async def fetch_ecosystem_stats(self, session, package_name):
         try:
@@ -133,9 +139,10 @@ class NPMPackageUpdater:
                 "last_updated": datetime.datetime.now(),
             }
             self.collection.update_one({"name": package_name}, {"$set": update_fields})
-            print(f"Updated package: {package_name}")
+            print(f"✓ Updated package: {package_name}")
+            self.successful_in_current_batch += 1
         except Exception as e:
-            error_msg = f"Error updating {package_name}: {str(e)}"
+            error_msg = f"✗ Error updating {package_name}: {str(e)}"
             print(f"WARNING: {error_msg}")
             self.failed_updates.append(
                 {
@@ -144,14 +151,62 @@ class NPMPackageUpdater:
                     "timestamp": datetime.datetime.now().isoformat(),
                 }
             )
+            self.failed_in_current_batch += 1
+
+    def print_batch_progress(self, current_batch: int, total_batches: int):
+        if self.batch_start_time:
+            elapsed = time.time() - self.batch_start_time
+            success_rate = (
+                (self.successful_in_current_batch / self.batch_size * 100)
+                if self.batch_size > 0
+                else 0
+            )
+            print(f"\n--- Batch {current_batch}/{total_batches} Progress ---")
+            print(f"Successful in this batch: {self.successful_in_current_batch}")
+            print(f"Failed in this batch: {self.failed_in_current_batch}")
+            print(f"Success rate: {success_rate:.1f}%")
+            print(f"Batch processing time: {elapsed:.1f} seconds")
+            if self.successful_in_current_batch > 0:
+                print(
+                    f"Average time per successful update: {elapsed / self.successful_in_current_batch:.1f} seconds"
+                )
+            print(f"Total packages processed so far: {self.total_processed}")
+
+    async def update_batch(
+        self,
+        session: aiohttp.ClientSession,
+        batch: list,
+        batch_num: int,
+        total_batches: int,
+    ):
+        self.batch_start_time = time.time()
+        self.successful_in_current_batch = 0
+        self.failed_in_current_batch = 0
+
+        print(f"\nStarting batch {batch_num}/{total_batches} ({len(batch)} packages)")
+        tasks = [self.update_package_info(session, pkg) for pkg in batch]
+        await asyncio.gather(*tasks)
+        self.total_processed += len(batch)
+        self.print_batch_progress(batch_num, total_batches)
 
     async def update_all_packages(self):
         packages = list(self.collection.find({}, {"name": 1}))
         total_packages = len(packages)
         print(f"Updating {total_packages} existing packages...")
+        if total_packages == 0:
+            print("No packages found to update!")
+            return
+
+        # Create batches based on the batch size.
+        batches = [
+            packages[i : i + self.batch_size]
+            for i in range(0, total_packages, self.batch_size)
+        ]
+        total_batches = len(batches)
+
         async with aiohttp.ClientSession() as session:
-            tasks = [self.update_package_info(session, pkg) for pkg in packages]
-            await asyncio.gather(*tasks)
+            for batch_num, batch in enumerate(batches, 1):
+                await self.update_batch(session, batch, batch_num, total_batches)
 
         if self.failed_updates:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -164,12 +219,25 @@ class NPMPackageUpdater:
         total_successful = total_packages - total_failed
         print("\nUpdate complete:")
         print(f"Total packages processed: {total_packages}")
-        print(f"Failed: {total_failed}")
         print(f"Successful: {total_successful}")
+        print(f"Failed: {total_failed}")
 
 
 def main():
-    updater = NPMPackageUpdater()
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Update existing npm packages in batches."
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=100,
+        help="Number of packages to update in each batch",
+    )
+    args = parser.parse_args()
+
+    updater = NPMPackageUpdater(batch_size=args.batch_size)
     start_time = time.time()
     asyncio.run(updater.update_all_packages())
     elapsed = time.time() - start_time
