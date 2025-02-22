@@ -21,7 +21,7 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/npm.ico" />
       </head>
-      <body className={`${geistMono.variable} antialiased`}>
+      <body className={`${geistMono.variable} font-mono  antialiased`}>
         {/* Server-rendered Header */}
         <Header />
         {children}

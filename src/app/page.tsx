@@ -56,7 +56,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#1e1e1e] font-mono text-[#d4d4d4]">
+    <div className="min-h-screen bg-[#1e1e1e] text-[#d4d4d4]">
 
       <main className="container mx-auto px-4 py-6">
         <Filters
