@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Header from "@/components/Header";
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -20,8 +21,11 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/npm.ico" />
       </head>
-
-      <body className={`${geistMono.variable} antialiased`}>{children}</body>
+      <body className={`${geistMono.variable} antialiased`}>
+        {/* Server-rendered Header */}
+        <Header />
+        {children}
+      </body>
     </html>
   );
 }
