@@ -72,6 +72,15 @@ class NPMPackageProcessor:
             last_sunday,
         )
 
+    def save_failed_packages_log(self):
+        """Save the log of failed packages to a file."""
+        if self.failed_packages:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file = self.log_dir / f"failed_packages_{timestamp}.log"
+            with open(log_file, "w") as f:
+                json.dump(self.failed_packages, f, indent=2)
+            print(f"Failed packages log saved to: {log_file}")
+
     async def fetch_weekly_trends(
         self, session: aiohttp.ClientSession, package_name: str
     ) -> Dict:
