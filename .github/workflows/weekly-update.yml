@@ -30,12 +30,3 @@ jobs:
         run: python scripts/weekly_update.py
         timeout-minutes: 330  # 5.5 hours for the script itself
         
-      - name: Upload logs
-        if: always()  # Run even if the previous step fails
-        uses: actions/upload-artifact@v3
-        with:
-          name: update-logs-${{ github.run_id }}
-          path: |
-            scripts/logs/
-            scripts/update_checkpoint.txt
-          retention-days: 14
