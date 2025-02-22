@@ -16,7 +16,7 @@ class TopPackagesFetcher:
             "https://packages.ecosyste.ms/api/v1/registries/npmjs.org/package_names"
         )
         self.packages_per_page = 1000
-        self.total_pages = 10  # Number of pages to fetch after the skip (10k packages)
+        self.total_pages = 20  # Number of pages to fetch after the skip (10k packages)
         self.output_file = output_file
         self.skip = skip
         self.semaphore = asyncio.Semaphore(10)  # Limit concurrent requests
