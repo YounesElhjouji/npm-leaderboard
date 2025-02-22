@@ -1,13 +1,15 @@
+import argparse
 import asyncio
 import datetime
 import json
+import os
 import time
 from datetime import timedelta
 from pathlib import Path
 from typing import Dict, List
 
 import aiohttp
-from pymongo import MongoClient
+from pymongo.synchronous.mongo_client import MongoClient
 
 
 class NPMPackageProcessor:
@@ -21,7 +23,7 @@ class NPMPackageProcessor:
         self.semaphore = asyncio.Semaphore(10)  # Limit concurrent requests
 
         # MongoDB setup
-        self.client = MongoClient("mongodb://localhost:27017/")
+        self.client = MongoClient(os.getenv("MONGO_URI", "mongodb://localhost:27017/"))
         self.db = self.client["npm-leaderboard"]
         self.collection = self.db["packages"]
 
@@ -231,7 +233,7 @@ class NPMPackageProcessor:
 
         # Print summary
         total_failed = len(self.failed_packages)
-        print(f"\nProcessing complete:")
+        print("\nProcessing complete:")
         print(f"Total packages in input: {len(package_names)}")
         print(f"Already processed: {len(existing_packages)}")
         print(f"Processed in this run: {len(to_process)}")
@@ -240,8 +242,17 @@ class NPMPackageProcessor:
 
 
 def main():
-    input_file = "data/package_names.json"
-    processor = NPMPackageProcessor(input_file)
+    parser = argparse.ArgumentParser(
+        description="Process npm packages to get downloads, dependents, version, etc."
+    )
+    parser.add_argument(
+        "--input",
+        type=str,
+        default="data/package_names.json",
+        help="File location to find package names (json list)",
+    )
+    args = parser.parse_args()
+    processor = NPMPackageProcessor(args.input)
     asyncio.run(processor.process_packages())
 
 

@@ -1,0 +1,29 @@
+
+name: Weekly NPM Leaderboard Update
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'  # Every Monday at 5:00 AM UTC
+  workflow_dispatch:  # Allows manual runs
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      MONGO_URI: ${{ secrets.MONGO_URI }}  # Use secret in environment variable
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install aiohttp pymongo
+
+      - name: Run weekly update
+        run: python scripts/weekly_update.py
