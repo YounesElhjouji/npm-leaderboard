@@ -59,7 +59,7 @@ MONGODB_URI=mongodb://localhost:27017/
 npm run dev
 ```
 
-Then open [http://localhost:3000](http://localhost:4200) in your browser.
+Then open [http://localhost:4200](http://localhost:4200) in your browser.
 
 ## 📝 License
 
@@ -80,4 +80,3 @@ For any inquiries or feature requests, feel free to reach out!
 That's up to you! You request it, I work on it.
 
 ---
-
