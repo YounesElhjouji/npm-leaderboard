@@ -23,12 +23,6 @@ const Filters = ({
     onSortChange(newSort);
   };
 
-  // Capture filter change on blur to avoid firing on every keystroke
-  const handleFilterBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    const newFilter = e.target.value;
-    posthog.capture("filter_blur", { filter_value: newFilter });
-  };
-
   return (
     <div className="mb-4 flex flex-col items-center justify-between space-y-4 md:flex-row md:space-y-0">
       {/* Sort Dropdown */}
@@ -62,7 +56,6 @@ const Filters = ({
           id="dependsOn"
           value={dependsOn}
           onChange={(e) => onDependsOnChange(e.target.value)}
-          onBlur={handleFilterBlur}
           placeholder="e.g., react"
           className="w-full rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6] sm:w-auto"
         />

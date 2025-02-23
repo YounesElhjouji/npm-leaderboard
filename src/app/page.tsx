@@ -7,7 +7,7 @@ import posthog from "posthog-js";
 
 export default function HomePage() {
   const [sortBy, setSortBy] = useState<SortBy>("growth");
-  const [dependsOn, setDependsOn] = useState<string>("react");
+  const [dependsOn, setDependsOn] = useState<string>("");
   const [debouncedDependsOn, setDebouncedDependsOn] =
     useState<string>(dependsOn);
   const [packages, setPackages] = useState<NPMPackage[]>([]);
