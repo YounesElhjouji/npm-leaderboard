@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { SortBy, NPMPackage } from "../types";
 import Filters from "../components/Filters";
 import PackageList from "../components/PackageList";
+import posthog from "posthog-js";
 
 export default function HomePage() {
   const [sortBy, setSortBy] = useState<SortBy>("growth");
@@ -12,6 +13,13 @@ export default function HomePage() {
   const [packages, setPackages] = useState<NPMPackage[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Track page view on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      posthog.capture("page_view", { path: window.location.pathname });
+    }
+  }, []);
+
   // Debounce the dependsOn value so that API calls don't happen on every keystroke
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -20,6 +28,7 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, [dependsOn]);
 
+  // Fetch packages based on search term and sort criteria
   useEffect(() => {
     async function fetchPackages() {
       setLoading(true);
@@ -37,6 +46,13 @@ export default function HomePage() {
     }
     fetchPackages();
   }, [sortBy, debouncedDependsOn]);
+
+  // Track search events with PostHog when the debounced search term changes
+  useEffect(() => {
+    if (!loading && debouncedDependsOn && typeof window !== "undefined") {
+      posthog.capture("search", { search_term: debouncedDependsOn });
+    }
+  }, [debouncedDependsOn, loading]);
 
   // Function to generate the dynamic title
   const generateTitle = () => {
@@ -57,7 +73,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[#1e1e1e] text-[#d4d4d4]">
-
       <main className="container mx-auto px-4 py-6">
         <Filters
           sortBy={sortBy}

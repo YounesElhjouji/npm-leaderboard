@@ -1,3 +1,4 @@
+import posthog from "posthog-js";
 import { NPMPackage } from "../types";
 import LineGraph from "./LineGraph";
 
@@ -17,37 +18,33 @@ const formatNumber = (num: number): string => {
 };
 
 const PackageCard = ({ pkg, showGrowth = false }: PackageCardProps) => {
+  const handleExternalLinkClick = () => {
+    posthog.capture("external_link_click", {
+      package: pkg.name,
+      url: pkg.link,
+    });
+  };
+
   return (
     <div className="w-full rounded border border-gray-600 bg-[#252526] p-4 shadow transition hover:shadow-lg">
-      {" "}
-      {/* Added w-full */}
       <div className="flex w-full flex-col items-start justify-between gap-6 md:flex-row">
-        {" "}
-        {/* Added w-full */}
         {/* Left: Name, Description, and Stats */}
         <div className="w-full flex-1">
-          {" "}
-          {/* Added w-full */}
           <h2 className="mb-1 w-full text-xl font-semibold">
-            {" "}
-            {/* Added w-full */}
             <a
               href={pkg.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="break-words text-[#569CD6] hover:underline" // Added break-words here as well for the title
+              className="break-words text-[#569CD6] hover:underline"
+              onClick={handleExternalLinkClick}
             >
               {pkg.name}
             </a>
           </h2>
           <p className="mb-2 w-full break-words text-sm text-gray-400">
-            {" "}
-            {/* Added w-full */}
             {pkg.description}
           </p>
           <div className="flex w-full flex-wrap items-center gap-4">
-            {" "}
-            {/* Added w-full */}
             <div className="flex items-center gap-1 text-sm">
               <span className="font-medium text-gray-400">Downloads:</span>
               <span className="text-[#d4d4d4]">

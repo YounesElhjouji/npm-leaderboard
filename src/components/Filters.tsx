@@ -1,3 +1,4 @@
+import posthog from "posthog-js";
 import { SortBy } from "../types";
 
 interface FiltersProps {
@@ -15,6 +16,19 @@ const Filters = ({
   onSortChange,
   onDependsOnChange,
 }: FiltersProps) => {
+  // Wrap sort change to capture the event before calling the handler
+  const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newSort = e.target.value as SortBy;
+    posthog.capture("sort_change", { sort_by: newSort });
+    onSortChange(newSort);
+  };
+
+  // Capture filter change on blur to avoid firing on every keystroke
+  const handleFilterBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const newFilter = e.target.value;
+    posthog.capture("filter_blur", { filter_value: newFilter });
+  };
+
   return (
     <div className="mb-4 flex flex-col items-center justify-between space-y-4 md:flex-row md:space-y-0">
       {/* Sort Dropdown */}
@@ -25,7 +39,7 @@ const Filters = ({
         <select
           id="sort"
           value={sortBy}
-          onChange={(e) => onSortChange(e.target.value as SortBy)}
+          onChange={handleSortChange}
           className="w-full rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6] sm:w-auto"
           disabled={loading}
         >
@@ -48,9 +62,9 @@ const Filters = ({
           id="dependsOn"
           value={dependsOn}
           onChange={(e) => onDependsOnChange(e.target.value)}
+          onBlur={handleFilterBlur}
           placeholder="e.g., react"
           className="w-full rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6] sm:w-auto"
-          // Notice: removed disabled={loading} so the input remains enabled while loading
         />
       </div>
     </div>

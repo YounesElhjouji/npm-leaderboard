@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { PostHogProvider } from "./providers";
 import Header from "@/components/Header";
 
 const geistMono = Geist_Mono({
@@ -21,10 +22,10 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/npm.ico" />
       </head>
-      <body className={`${geistMono.variable} font-mono  antialiased`}>
+      <body className={`${geistMono.variable} font-mono antialiased`}>
         {/* Server-rendered Header */}
         <Header />
-        {children}
+        <PostHogProvider>{children}</PostHogProvider>
       </body>
     </html>
   );
