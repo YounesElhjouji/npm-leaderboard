@@ -172,6 +172,27 @@ class NPMPackageProcessor:
                 )
             print(f"Total packages processed so far: {self.total_processed}")
 
+    def get_npm_timestamps(self, package_data):
+        """
+        Extract the package creation and last modified timestamps from npm data.
+        These timestamps come from the 'time' field in the package metadata.
+
+        Returns:
+        tuple: (npm_created_at, npm_modified_at)
+        """
+        try:
+            time_data = package_data.get("time", {})
+
+            # Get created time - this is when the package was first published
+            npm_created_at = time_data.get("created")
+
+            # Get modified time - this is when the package was last updated
+            npm_modified_at = time_data.get("modified")
+
+            return npm_created_at, npm_modified_at
+        except Exception:
+            return None, None
+
     async def fetch_and_store_package_info(
         self, session: aiohttp.ClientSession, package_name: str
     ):
@@ -206,7 +227,12 @@ class NPMPackageProcessor:
 
             peer_dependencies = list(latest_data.get("peerDependencies", {}).keys())
 
-            current_time = datetime.datetime.now()
+            # Get npm timestamps
+            npm_created_at, npm_modified_at = self.get_npm_timestamps(data)
+
+            # Our database document timestamps
+            db_created_at = datetime.datetime.now()
+
             package_doc = {
                 "name": package_name,
                 "description": data.get("description", ""),
@@ -220,8 +246,14 @@ class NPMPackageProcessor:
                 "dependent_packages_count": ecosystem_stats["dependent_packages_count"],
                 "dependent_repos_count": ecosystem_stats["dependent_repos_count"],
                 "latest_version": latest_version,
-                "created_time": current_time,
-                "last_updated": current_time,
+                # NPM package timestamps
+                "npm_timestamps": {
+                    "created_at": npm_created_at,
+                    "modified_at": npm_modified_at,
+                },
+                # Our database document timestamps
+                "db_created_at": db_created_at,
+                "db_updated_at": db_created_at,
             }
 
             # Insert document into MongoDB
