@@ -111,7 +111,7 @@ class NPMPackageUpdater:
                 day_date = datetime.datetime.strptime(day_data["day"], "%Y-%m-%d")
                 # Start a new week on Monday
                 if day_date.weekday() == 0:
-                    if current_week:
+                    if current_week and len(current_week) == 7:
                         week_end = day_date - timedelta(days=1)  # Previous Sunday
                         downloads_by_week.append(
                             {
@@ -338,6 +338,11 @@ def main():
 
     updater = NPMPackageUpdater(batch_size=args.batch_size)
     asyncio.run(updater.update_all_packages())
+
+
+async def debug_single_package():
+    async with aiohttp.ClientSession() as session:
+        await NPMPackageUpdater(1).update_package_info(session, {"name": "semver"})
 
 
 if __name__ == "__main__":

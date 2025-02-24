@@ -91,6 +91,7 @@ class NPMPackageProcessor:
         """
         try:
             start_date, end_date = self.get_week_boundaries()
+            print(f"week boundaries: {start_date} - {end_date}")
             downloads_url = (
                 f"{self.downloads_url}/range/"
                 f"{start_date.strftime('%Y-%m-%d')}:{end_date.strftime('%Y-%m-%d')}/"
@@ -113,7 +114,7 @@ class NPMPackageProcessor:
                 day_date = datetime.datetime.strptime(day_data["day"], "%Y-%m-%d")
                 # Start a new week on Monday
                 if day_date.weekday() == 0:
-                    if current_week:
+                    if current_week and len(current_week) == 7:
                         week_end = day_date - timedelta(days=1)  # Previous Sunday
                         downloads_by_week.append(
                             {
