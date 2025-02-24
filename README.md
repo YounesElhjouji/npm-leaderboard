@@ -7,7 +7,7 @@ A web application that ranks and tracks the most popular npm packages based on d
 - **Sort npm packages** by:
   - 📈 **Most Downloaded** (Total downloads)
   - 🚀 **Trending** (Average weekly percentage growth)
-  - 🔗 **Most Dependents** (Packages that rely on it)
+  - 🔗 **Most Dependents** (Repos that rely on it)
 - **Filter by dependencies**: Search for packages that depend on a specific package (e.g., `react`).
 - **Dark Mode by Default** 🌙
 - **Fast and lightweight**: Built with **Next.js** and **MongoDB**.
