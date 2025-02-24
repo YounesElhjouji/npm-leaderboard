@@ -28,7 +28,7 @@ export default async function Header() {
           <h1 className="text-3xl font-bold text-[#569CD6]">NPM Leaderboard</h1>
           <p className="text-md mt-1">
             Explore the most popular npm packages by downloads, growth, and
-            dependents.
+            dependent repos.
           </p>
         </div>
         <div className="mt-4 w-full text-right md:mt-0">

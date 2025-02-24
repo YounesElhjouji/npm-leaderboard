@@ -45,34 +45,46 @@ const PackageCard = ({ pkg, showGrowth = false }: PackageCardProps) => {
             {pkg.description}
           </p>
           <div className="flex w-full flex-wrap items-center gap-4">
+            {/* Downloads */}
             <div className="flex items-center gap-1 text-sm">
               <span className="font-medium text-gray-400">Downloads:</span>
               <span className="text-[#d4d4d4]">
-                {formatNumber(pkg.downloads?.total ?? 0)}
+                {pkg.downloads && pkg.downloads.total != null
+                  ? formatNumber(pkg.downloads.total)
+                  : "N/A"}
               </span>
             </div>
+            {/* Dependents */}
             <div className="flex items-center gap-1 text-sm">
               <span className="font-medium text-gray-400">Dependents:</span>
               <span className="text-[#d4d4d4]">
-                {formatNumber(pkg.dependent_packages_count)}
+                {pkg.dependent_repos_count != null
+                  ? pkg.dependent_repos_count < 1000
+                    ? "Early"
+                    : formatNumber(pkg.dependent_repos_count)
+                  : "N/A"}
               </span>
             </div>
+            {/* Growth */}
             {pkg.avgGrowth !== undefined && showGrowth && (
               <div className="flex items-center gap-1 text-sm">
                 <span className="font-medium text-gray-400">Growth Score:</span>
                 <span className="text-[#d4d4d4]">
-                  {pkg.avgGrowth.toFixed(2)}%
+                  {pkg.avgGrowth != null
+                    ? pkg.avgGrowth.toFixed(2) + "%"
+                    : "N/A"}
                 </span>
               </div>
             )}
           </div>
         </div>
         {/* Right: Line Graph */}
-        {pkg.downloads?.weekly_trends && (
-          <div className="mt-4 w-full md:mt-0 md:w-60">
-            <LineGraph data={pkg.downloads.weekly_trends} />
-          </div>
-        )}
+        {pkg.downloads?.weekly_trends &&
+          pkg.downloads.weekly_trends.length > 0 && (
+            <div className="mt-4 w-full md:mt-0 md:w-60">
+              <LineGraph data={pkg.downloads.weekly_trends} />
+            </div>
+          )}
       </div>
     </div>
   );

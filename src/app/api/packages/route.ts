@@ -14,6 +14,7 @@ interface NPMPackage {
     weekly_trends: WeeklyTrend[];
   };
   dependent_packages_count: number;
+  dependent_repos_count: number;
   avgGrowth?: number;
   link: string;
   name: string;
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
   if (sortBy === "downloads") {
     sortCriteria = { "downloads.total": -1 };
   } else if (sortBy === "dependents") {
-    sortCriteria = { dependent_packages_count: -1 };
+    sortCriteria = { dependent_repos_count: -1 };
   }
 
   const client = await clientPromise;
