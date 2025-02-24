@@ -18,9 +18,12 @@ export type LineGraphProps = {
 };
 
 const LineGraph: React.FC<LineGraphProps> = ({ data }) => {
+  // Remove the first data point
+  const filteredData = data.slice(1);
+
   return (
     <ResponsiveContainer width="100%" height={80}>
-      <LineChart data={data}>
+      <LineChart data={filteredData}>
         <Line
           type="monotone"
           dataKey="downloads"
