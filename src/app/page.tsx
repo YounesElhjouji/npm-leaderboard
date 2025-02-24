@@ -5,11 +5,21 @@ import Filters from "../components/Filters";
 import PackageList from "../components/PackageList";
 import posthog from "posthog-js";
 
+const daysMapping: Record<string, string> = {
+  "30": "last month",
+  "180": "last 6 months",
+  "365": "last year",
+};
+
 export default function HomePage() {
   const [sortBy, setSortBy] = useState<SortBy>("growth");
   const [dependsOn, setDependsOn] = useState<string>("");
   const [debouncedDependsOn, setDebouncedDependsOn] =
     useState<string>(dependsOn);
+
+  // New state for modified filter (number of days)
+  const [modified, setModified] = useState<string>("");
+
   const [packages, setPackages] = useState<NPMPackage[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -20,7 +30,7 @@ export default function HomePage() {
     }
   }, []);
 
-  // Debounce the dependsOn value so that API calls don't happen on every keystroke
+  // Debounce the dependsOn value
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedDependsOn(dependsOn);
@@ -28,14 +38,17 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, [dependsOn]);
 
-  // Fetch packages based on search term and sort criteria
+  // Fetch packages based on search term, sort criteria, and modified filter
   useEffect(() => {
     async function fetchPackages() {
       setLoading(true);
       try {
-        const res = await fetch(
-          `/api/packages?sortBy=${sortBy}&dependsOn=${debouncedDependsOn}`,
-        );
+        // Build query URL
+        let url = `/api/packages?sortBy=${sortBy}&dependsOn=${debouncedDependsOn}`;
+        if (modified) {
+          url += `&modified=${modified}`;
+        }
+        const res = await fetch(url);
         const data = await res.json();
         setPackages(data.packages);
       } catch (error) {
@@ -45,7 +58,7 @@ export default function HomePage() {
       }
     }
     fetchPackages();
-  }, [sortBy, debouncedDependsOn]);
+  }, [sortBy, debouncedDependsOn, modified]);
 
   // Track search events with PostHog when the debounced search term changes
   useEffect(() => {
@@ -68,6 +81,9 @@ export default function HomePage() {
     if (debouncedDependsOn) {
       title += ` that depend on '${debouncedDependsOn}'`;
     }
+    if (modified) {
+      title += `, updated within the ${daysMapping[modified]}`;
+    }
     return title;
   };
 
@@ -77,9 +93,11 @@ export default function HomePage() {
         <Filters
           sortBy={sortBy}
           dependsOn={dependsOn}
+          modified={modified}
           loading={loading}
           onSortChange={setSortBy}
           onDependsOnChange={setDependsOn}
+          onModifiedChange={setModified}
         />
 
         <h2 className="mb-4 text-xl font-semibold text-[#d4d4d4]">

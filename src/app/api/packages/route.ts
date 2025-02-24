@@ -25,14 +25,27 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const sortBy = searchParams.get("sortBy") || "downloads";
   const dependsOn = searchParams.get("dependsOn") || "";
+  const modifiedParam = searchParams.get("modified"); // Number of days as a string
 
-  // Instead of "any", we use a generic object type for our query.
+  // Build the base query
   const query: Record<string, unknown> = {};
   if (dependsOn) {
     query.$or = [
       { dependencies: { $in: [dependsOn] } },
       { peerDependencies: { $in: [dependsOn] } },
     ];
+  }
+
+  // If the modified parameter is provided and is a valid number > 0,
+  // filter packages modified within that many days.
+  if (modifiedParam) {
+    const days = parseInt(modifiedParam, 10);
+    if (!isNaN(days) && days > 0) {
+      const thresholdDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      query["npm_timestamps.modified_at"] = {
+        $gte: thresholdDate.toISOString(),
+      };
+    }
   }
 
   let sortCriteria: Record<string, number> = {};
@@ -81,9 +94,7 @@ export async function GET(request: Request) {
               { $gt: [{ $size: "$fullWeeklyDownloads" }, 1] },
               {
                 $map: {
-                  input: {
-                    $range: [1, { $size: "$fullWeeklyDownloads" }],
-                  },
+                  input: { $range: [1, { $size: "$fullWeeklyDownloads" }] },
                   as: "i",
                   in: {
                     $cond: {
@@ -154,7 +165,6 @@ export async function GET(request: Request) {
       { $limit: 100 },
     );
 
-    // Use type assertion here to let TypeScript know the result matches NPMPackage[]
     packages = (await db
       .collection("packages")
       .aggregate(pipeline)
