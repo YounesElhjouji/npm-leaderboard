@@ -68,22 +68,33 @@ export default function HomePage() {
   }, [debouncedDependsOn, loading]);
 
   // Function to generate the dynamic title
+  // Function to generate the dynamic title with the new format
   const generateTitle = () => {
     let title = `${packages.length} `;
+
+    // Add the ranking type (most downloaded, most relied-upon, etc.)
     if (sortBy === "growth") {
-      title += "trending ";
+      title += "fastest growing ";
     } else if (sortBy === "downloads") {
       title += "most downloaded ";
     } else if (sortBy === "dependents") {
       title += "most relied-upon ";
     }
+
     title += "npm packages";
-    if (debouncedDependsOn) {
+
+    // Handle different combinations of filters
+    if (debouncedDependsOn && modified) {
+      // Both filters are set
+      title += ` that depend on '${debouncedDependsOn}' and have been updated in the ${daysMapping[modified]}`;
+    } else if (debouncedDependsOn) {
+      // Only dependency filter is set
       title += ` that depend on '${debouncedDependsOn}'`;
+    } else if (modified) {
+      // Only time period filter is set
+      title += ` that have been updated in the ${daysMapping[modified]}`;
     }
-    if (modified) {
-      title += `, updated within the ${daysMapping[modified]}`;
-    }
+
     return title;
   };
 
