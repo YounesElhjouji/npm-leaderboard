@@ -5,7 +5,7 @@ export default async function Header() {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:4200";
     const res = await fetch(`${baseUrl}/api/metadata`, {
-      cache: "no-store",
+      next: { revalidate: 43200 }, // 43200 seconds = 12 hours
     });
     const data = await res.json();
     lastSync = data.lastSync;
@@ -28,7 +28,7 @@ export default async function Header() {
           <h1 className="text-3xl font-bold text-[#569CD6]">NPM Leaderboard</h1>
           <p className="text-md mt-1">
             Explore the most popular npm packages by downloads, growth, and
-            dependents.
+            dependent repos.
           </p>
         </div>
         <div className="mt-4 w-full text-right md:mt-0">

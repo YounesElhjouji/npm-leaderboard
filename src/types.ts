@@ -16,5 +16,6 @@ export interface NPMPackage {
     weekly_trends: WeeklyTrend[];
   };
   dependent_packages_count: number;
+  dependent_repos_count: number;
   avgGrowth?: number;
 }

@@ -52,7 +52,8 @@ class NPMPackageProcessor:
                 data = await response.json()
                 return {
                     "total_downloads": data.get("downloads", 0),
-                    "dependent_count": data.get("dependent_packages_count", 0),
+                    "dependent_packages_count": data.get("dependent_packages_count", 0),
+                    "dependent_repos_count": data.get("dependent_repos_count", 0),
                     "error": None,
                 }
         except Exception as e:
@@ -216,7 +217,8 @@ class NPMPackageProcessor:
                     "total": ecosystem_stats["total_downloads"],
                     "weekly_trends": weekly_stats["weekly_trends"],
                 },
-                "dependent_packages_count": ecosystem_stats["dependent_count"],
+                "dependent_packages_count": ecosystem_stats["dependent_packages_count"],
+                "dependent_repos_count": ecosystem_stats["dependent_repos_count"],
                 "latest_version": latest_version,
                 "created_time": current_time,
                 "last_updated": current_time,
