@@ -32,17 +32,17 @@ const Filters = ({
   };
 
   return (
-    <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between">
-      {/* Left Group: Sort Dropdown */}
-      <div className="flex w-full items-center space-x-2 md:w-auto">
-        <label htmlFor="sort" className="text-md font-medium text-[#d4d4d4]">
-          Sort by:
+    <div className="mb-6 flex flex-col space-y-4 md:flex-row md:items-end md:justify-between md:space-y-0">
+      {/* Left Side - Sort Dropdown */}
+      <div className="flex flex-col space-y-1">
+        <label htmlFor="sort" className="text-sm font-medium text-[#d4d4d4]">
+          Sort by
         </label>
         <select
           id="sort"
           value={sortBy}
           onChange={handleSortChange}
-          className="rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6]"
+          className="w-full rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6] md:w-auto"
           disabled={loading}
         >
           <option value="downloads">Most Downloaded</option>
@@ -51,15 +51,15 @@ const Filters = ({
         </select>
       </div>
 
-      {/* Right Group: Dependency and Update Filters */}
-      <div className="flex w-full flex-col gap-4 md:w-auto md:flex-row md:items-center">
+      {/* Right Side - Filters Group */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {/* Dependency Filter Input */}
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-col space-y-1">
           <label
             htmlFor="dependsOn"
-            className="text-md font-medium text-[#d4d4d4]"
+            className="text-sm font-medium text-[#d4d4d4]"
           >
-            Depends on:
+            Depends on
           </label>
           <input
             type="text"
@@ -67,24 +67,24 @@ const Filters = ({
             value={dependsOn}
             onChange={(e) => onDependsOnChange(e.target.value)}
             placeholder="e.g., react"
-            className="rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6]"
+            className="w-full rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6]"
             disabled={loading}
           />
         </div>
 
         {/* Updated Within Dropdown */}
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-col space-y-1">
           <label
             htmlFor="modified"
-            className="text-md font-medium text-[#d4d4d4]"
+            className="text-sm font-medium text-[#d4d4d4]"
           >
-            Updated within:
+            Updated within
           </label>
           <select
             id="modified"
             value={modified}
             onChange={handleModifiedChange}
-            className="rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6]"
+            className="w-full rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6]"
             disabled={loading}
           >
             <option value="">All Time</option>
