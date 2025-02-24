@@ -5,7 +5,7 @@ export default async function Header() {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:4200";
     const res = await fetch(`${baseUrl}/api/metadata`, {
-      cache: "no-store",
+      next: { revalidate: 43200 }, // 43200 seconds = 12 hours
     });
     const data = await res.json();
     lastSync = data.lastSync;
