@@ -66,6 +66,15 @@ export async function GET(request: Request) {
     }
     pipeline.push(
       {
+        $match: {
+          name: {
+            $not: {
+              $regex: "^@",
+            },
+          },
+        },
+      },
+      {
         $addFields: {
           weeklyDownloads: {
             $map: {
