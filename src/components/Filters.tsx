@@ -68,7 +68,6 @@ const Filters = ({
             onChange={(e) => onDependsOnChange(e.target.value)}
             placeholder="e.g., react"
             className="w-full rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6]"
-            disabled={loading}
           />
         </div>
 
