@@ -247,6 +247,7 @@ class NPMPackageProcessor:
                 "dependent_packages_count": ecosystem_stats["dependent_packages_count"],
                 "dependent_repos_count": ecosystem_stats["dependent_repos_count"],
                 "latest_version": latest_version,
+                "keywords": data.get("keywords", []),
                 # NPM package timestamps
                 "npm_timestamps": {
                     "created_at": npm_created_at,

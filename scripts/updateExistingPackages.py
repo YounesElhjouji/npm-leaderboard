@@ -240,6 +240,7 @@ class NPMPackageUpdater:
                 "dependent_packages_count": ecosystem_stats["dependent_packages_count"],
                 "dependent_repos_count": ecosystem_stats["dependent_repos_count"],
                 "latest_version": latest_version,
+                "keywords": data.get("keywords", []),
                 "npm_timestamps": {
                     "created_at": npm_created_at,
                     "modified_at": npm_modified_at,
@@ -282,7 +283,7 @@ class NPMPackageUpdater:
         packages = list(self.collection.find({}, {"name": 1}))
         total_packages = len(packages)
 
-        print(f"\nInitial Status:")
+        print("\nInitial Status:")
         print(f"Total packages in database: {total_packages}")
 
         if total_packages == 0:
