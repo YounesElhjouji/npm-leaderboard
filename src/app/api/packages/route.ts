@@ -20,11 +20,11 @@ interface NPMPackage {
   name: string;
   description: string;
 }
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const sortBy = searchParams.get("sortBy") || "downloads";
   const dependsOn = searchParams.get("dependsOn") || "";
+  const keywords = searchParams.get("keywords") || ""; // Space separated keywords
   const modifiedParam = searchParams.get("modified"); // Number of days as a string
 
   // Build the base query
@@ -48,6 +48,21 @@ export async function GET(request: Request) {
     }
   }
 
+  // --- New: Lenient keyword search ---
+  // If keywords are provided, split by space and convert each into a regex.
+  // This simple approach strips any trailing "s" and allows an optional "s".
+  if (keywords) {
+    const keywordArray = keywords.split(/\s+/).map((kw) => {
+      // Remove trailing "s" to get a base form
+      const base = kw.replace(/s$/i, "");
+      // Create a regex that matches the base with an optional "s" at the end, case-insensitively
+      return new RegExp(`^${base}s?$`, "i");
+    });
+    // Use $all to ensure that every keyword must be matched in the keywords array.
+    query.keywords = { $all: keywordArray };
+  }
+  // --------------------------------
+
   let sortCriteria: Record<string, number> = {};
   if (sortBy === "downloads") {
     sortCriteria = { "downloads.total": -1 };
@@ -67,11 +82,7 @@ export async function GET(request: Request) {
     pipeline.push(
       {
         $match: {
-          name: {
-            $not: {
-              $regex: "^@",
-            },
-          },
+          name: { $not: { $regex: "^@" } },
         },
       },
       {

@@ -4,20 +4,24 @@ import { SortBy } from "../types";
 interface FiltersProps {
   sortBy: SortBy;
   dependsOn: string;
+  keywords: string;
   modified: string;
   loading: boolean;
   onSortChange: (sort: SortBy) => void;
   onDependsOnChange: (value: string) => void;
+  onKeywordsChange: (value: string) => void;
   onModifiedChange: (value: string) => void;
 }
 
 const Filters = ({
   sortBy,
   dependsOn,
+  keywords,
   modified,
   loading,
   onSortChange,
   onDependsOnChange,
+  onKeywordsChange,
   onModifiedChange,
 }: FiltersProps) => {
   // Wrap sort change to capture event before calling the handler
@@ -32,7 +36,7 @@ const Filters = ({
   };
 
   return (
-    <div className="mb-6 flex flex-col space-y-4 md:flex-row md:items-end md:justify-between md:space-y-0">
+    <div className="mb-6 flex flex-col gap-4 space-y-4 md:flex-row md:items-end md:justify-between md:space-y-0">
       {/* Left Side - Sort Dropdown */}
       <div className="flex flex-col space-y-1">
         <label htmlFor="sort" className="text-sm font-medium text-[#d4d4d4]">
@@ -52,7 +56,24 @@ const Filters = ({
       </div>
 
       {/* Right Side - Filters Group */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* Keyword Filter Input */}
+        <div className="flex flex-col space-y-1">
+          <label
+            htmlFor="keyword"
+            className="text-sm font-medium text-[#d4d4d4]"
+          >
+            Keywords
+          </label>
+          <input
+            type="text"
+            id="keywords"
+            value={keywords}
+            onChange={(e) => onKeywordsChange(e.target.value)}
+            placeholder="e.g., stream parse"
+            className="w-full rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6]"
+          />
+        </div>
         {/* Dependency Filter Input */}
         <div className="flex flex-col space-y-1">
           <label

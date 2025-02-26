@@ -16,6 +16,8 @@ export default function HomePage() {
   const [dependsOn, setDependsOn] = useState<string>("");
   const [debouncedDependsOn, setDebouncedDependsOn] =
     useState<string>(dependsOn);
+  const [keywords, setKeywords] = useState<string>("");
+  const [debouncedKeywords, setDebouncedKeywords] = useState<string>(keywords);
 
   // New state for modified filter (number of days)
   const [modified, setModified] = useState<string>("");
@@ -38,13 +40,21 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, [dependsOn]);
 
+  // Debounce the keywords value
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedKeywords(keywords);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [keywords]);
+
   // Fetch packages based on search term, sort criteria, and modified filter
   useEffect(() => {
     async function fetchPackages() {
       setLoading(true);
       try {
         // Build query URL
-        let url = `/api/packages?sortBy=${sortBy}&dependsOn=${debouncedDependsOn}`;
+        let url = `/api/packages?sortBy=${sortBy}&dependsOn=${debouncedDependsOn}&keywords=${debouncedKeywords}`;
         if (modified) {
           url += `&modified=${modified}`;
         }
@@ -58,7 +68,7 @@ export default function HomePage() {
       }
     }
     fetchPackages();
-  }, [sortBy, debouncedDependsOn, modified]);
+  }, [sortBy, debouncedDependsOn, debouncedKeywords, modified]);
 
   // Track search events with PostHog when the debounced search term changes
   useEffect(() => {
@@ -104,10 +114,12 @@ export default function HomePage() {
         <Filters
           sortBy={sortBy}
           dependsOn={dependsOn}
+          keywords={keywords}
           modified={modified}
           loading={loading}
           onSortChange={setSortBy}
           onDependsOnChange={setDependsOn}
+          onKeywordsChange={setKeywords}
           onModifiedChange={setModified}
         />
 
