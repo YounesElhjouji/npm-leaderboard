@@ -30,9 +30,10 @@ export async function GET(request: Request) {
   // Build the base query
   const query: Record<string, unknown> = {};
   if (dependsOn) {
+    const regex = new RegExp(dependsOn, "i");
     query.$or = [
-      { dependencies: { $in: [dependsOn] } },
-      { peerDependencies: { $in: [dependsOn] } },
+      { dependencies: { $in: [regex] } },
+      { peerDependencies: { $in: [regex] } },
     ];
   }
 
