@@ -33,7 +33,10 @@ const LineGraph: React.FC<LineGraphProps> = ({ data }) => {
         <Tooltip
           formatter={(value: number) => value.toLocaleString()}
           labelFormatter={(label) => `Week ending: ${label}`}
-          contentStyle={{ backgroundColor: "#1e1e1e", border: "none" }}
+          contentStyle={{
+            backgroundColor: "rgba(30, 30, 30, 0.8)",
+            border: "none",
+          }}
           itemStyle={{ color: "#d4d4d4" }}
         />
       </LineChart>
