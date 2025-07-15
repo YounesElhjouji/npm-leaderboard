@@ -1,7 +1,0 @@
-[
-  {
-    "package": "@polkadot/types",
-    "error": "Response payload is not completed: <TransferEncodingError: 400, message='Not enough data for satisfy transfer length header.'>",
-    "timestamp": "2025-02-22T00:18:48.271618"
-  }
-]
