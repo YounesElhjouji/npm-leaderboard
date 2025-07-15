@@ -3,6 +3,7 @@
 # dependencies
 *node_modules*
 *venv*
+*data*
 *__pycache__*
 /.pnp
 .pnp.*
@@ -44,4 +45,3 @@ next-env.d.ts
 
 # my stuff
 *ephemeral.json
-scripts/data
