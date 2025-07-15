@@ -1,0 +1,50 @@
+[
+  {
+    "package": "@ngdaddy/eslint-plugin",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-24T13:36:33.978479",
+    "batch_number": 17
+  },
+  {
+    "package": "@deca-ui/react",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-24T13:47:37.980343",
+    "batch_number": 87
+  },
+  {
+    "package": "@contenthook/browser",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-24T13:47:49.548799",
+    "batch_number": 88
+  },
+  {
+    "package": "@zitterorg/aspernatur-pariatur-occaecati",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-24T13:49:24.981982",
+    "batch_number": 98
+  },
+  {
+    "package": "@contenthook/node",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-24T13:53:01.775096",
+    "batch_number": 121
+  },
+  {
+    "package": "@ngdaddy/eslint-config",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-24T14:01:11.144358",
+    "batch_number": 173
+  },
+  {
+    "package": "contenthook",
+    "error": "Failed to fetch download stats: 404",
+    "timestamp": "2025-02-24T14:03:34.700847",
+    "batch_number": 188
+  },
+  {
+    "package": "@contenthook/cli",
+    "error": "Failed to fetch package info: 404",
+    "timestamp": "2025-02-24T14:05:01.023025",
+    "batch_number": 195
+  }
+]
