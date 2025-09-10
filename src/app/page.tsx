@@ -18,57 +18,45 @@ export default function HomePage() {
     useState<string>(dependsOn);
   const [keywords, setKeywords] = useState<string>("");
   const [debouncedKeywords, setDebouncedKeywords] = useState<string>(keywords);
-
   const [modified, setModified] = useState<string>("");
 
   const [packages, setPackages] = useState<NPMPackage[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Smart search state
   const [smartMode, setSmartMode] = useState<boolean>(false);
   const [smartQuery, setSmartQuery] = useState<string>("");
   const lastSmartQueryRef = useRef<string>("");
 
-  // Track page view on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       posthog.capture("page_view", { path: window.location.pathname });
     }
   }, []);
 
-  // Debounce the dependsOn value
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedDependsOn(dependsOn);
-    }, 300);
+    const timer = setTimeout(() => setDebouncedDependsOn(dependsOn), 300);
     return () => clearTimeout(timer);
   }, [dependsOn]);
 
-  // Debounce the keywords value
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedKeywords(keywords);
-    }, 300);
+    const timer = setTimeout(() => setDebouncedKeywords(keywords), 300);
     return () => clearTimeout(timer);
   }, [keywords]);
 
-  // Classic fetch (only when NOT in smart mode)
   useEffect(() => {
-    if (smartMode) return; // skip when smart search is active
+    if (smartMode) return;
     async function fetchPackages() {
       setLoading(true);
       try {
         let url = `/api/packages?sortBy=${sortBy}&dependsOn=${encodeURIComponent(
           debouncedDependsOn,
         )}&keywords=${encodeURIComponent(debouncedKeywords)}`;
-        if (modified) {
-          url += `&modified=${modified}`;
-        }
+        if (modified) url += `&modified=${modified}`;
         const res = await fetch(url);
         const data = await res.json();
         setPackages(data.packages);
-      } catch (error) {
-        console.error("Failed to fetch packages:", error);
+      } catch (e) {
+        console.error("Failed to fetch packages:", e);
       } finally {
         setLoading(false);
       }
@@ -76,19 +64,13 @@ export default function HomePage() {
     fetchPackages();
   }, [sortBy, debouncedDependsOn, debouncedKeywords, modified, smartMode]);
 
-  // Smart search trigger (no debouncing; explicit button press)
   const runSmartSearch = async () => {
     const q = smartQuery.trim();
-    if (!q) return;
-    if (q === lastSmartQueryRef.current) {
-      // avoid duplicate exact calls if user double-clicks
-      return;
-    }
+    if (!q || q === lastSmartQueryRef.current) return;
     lastSmartQueryRef.current = q;
 
     setLoading(true);
     try {
-      // TODO: implement /api/smart-search -> calls Perplexity, returns { packages: NPMPackage[] }
       const res = await fetch(
         `/api/smart-search?query=${encodeURIComponent(q)}`,
       );
@@ -98,20 +80,12 @@ export default function HomePage() {
         query: q,
         result_count: (data.packages || []).length,
       });
-    } catch (error) {
-      console.error("Smart search failed:", error);
+    } catch (e) {
+      console.error("Smart search failed:", e);
     } finally {
       setLoading(false);
     }
   };
-
-  // When toggling back to classic mode, optionally clear smart results by refetching
-  useEffect(() => {
-    if (!smartMode) {
-      // Let the classic effect above refetch automatically via dependencies
-      return;
-    }
-  }, [smartMode]);
 
   const generateTitle = () => {
     if (smartMode) {
@@ -119,15 +93,13 @@ export default function HomePage() {
         ? "Running smart search..."
         : `${packages.length} npm packages found (Smart Search)`;
     }
-
     let title = `${packages.length} `;
-    if (sortBy === "growth") {
-      title += "fastest growing ";
-    } else if (sortBy === "downloads") {
-      title += "most downloaded ";
-    } else if (sortBy === "dependents") {
-      title += "most relied-upon ";
-    }
+    title +=
+      sortBy === "growth"
+        ? "fastest growing "
+        : sortBy === "downloads"
+          ? "most downloaded "
+          : "most relied-upon ";
     title += "npm packages";
     if (debouncedDependsOn && modified) {
       title += ` that depend on '${debouncedDependsOn}' and have been updated in the ${daysMapping[modified]}`;
@@ -143,6 +115,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-[#1e1e1e] text-[#d4d4d4]">
       <main className="container mx-auto px-4 py-6">
         <Filters
+          // classic
           sortBy={sortBy}
           dependsOn={dependsOn}
           keywords={keywords}
@@ -152,7 +125,7 @@ export default function HomePage() {
           onDependsOnChange={setDependsOn}
           onKeywordsChange={setKeywords}
           onModifiedChange={setModified}
-          // smart search
+          // smart
           smartMode={smartMode}
           smartQuery={smartQuery}
           onToggleSmartMode={setSmartMode}
