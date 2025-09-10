@@ -94,7 +94,6 @@ async function fetchFromNpm(
   if (!res.ok) return null;
 
   const data = await res.json();
-  console.log("data", data);
 
   const latestVersion =
     data?.["dist-tags"]?.latest && data.versions?.[data["dist-tags"].latest];
