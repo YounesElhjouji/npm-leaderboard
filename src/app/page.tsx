@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { SortBy, NPMPackage } from "../types";
 import Filters from "../components/Filters";
 import PackageList from "../components/PackageList";
@@ -19,11 +19,15 @@ export default function HomePage() {
   const [keywords, setKeywords] = useState<string>("");
   const [debouncedKeywords, setDebouncedKeywords] = useState<string>(keywords);
 
-  // New state for modified filter (number of days)
   const [modified, setModified] = useState<string>("");
 
   const [packages, setPackages] = useState<NPMPackage[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Smart search state
+  const [smartMode, setSmartMode] = useState<boolean>(false);
+  const [smartQuery, setSmartQuery] = useState<string>("");
+  const lastSmartQueryRef = useRef<string>("");
 
   // Track page view on mount
   useEffect(() => {
@@ -48,13 +52,15 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, [keywords]);
 
-  // Fetch packages based on search term, sort criteria, and modified filter
+  // Classic fetch (only when NOT in smart mode)
   useEffect(() => {
+    if (smartMode) return; // skip when smart search is active
     async function fetchPackages() {
       setLoading(true);
       try {
-        // Build query URL
-        let url = `/api/packages?sortBy=${sortBy}&dependsOn=${debouncedDependsOn}&keywords=${debouncedKeywords}`;
+        let url = `/api/packages?sortBy=${sortBy}&dependsOn=${encodeURIComponent(
+          debouncedDependsOn,
+        )}&keywords=${encodeURIComponent(debouncedKeywords)}`;
         if (modified) {
           url += `&modified=${modified}`;
         }
@@ -68,21 +74,53 @@ export default function HomePage() {
       }
     }
     fetchPackages();
-  }, [sortBy, debouncedDependsOn, debouncedKeywords, modified]);
+  }, [sortBy, debouncedDependsOn, debouncedKeywords, modified, smartMode]);
 
-  // Track search events with PostHog when the debounced search term changes
-  useEffect(() => {
-    if (!loading && debouncedDependsOn && typeof window !== "undefined") {
-      posthog.capture("search", { search_term: debouncedDependsOn });
+  // Smart search trigger (no debouncing; explicit button press)
+  const runSmartSearch = async () => {
+    const q = smartQuery.trim();
+    if (!q) return;
+    if (q === lastSmartQueryRef.current) {
+      // avoid duplicate exact calls if user double-clicks
+      return;
     }
-  }, [debouncedDependsOn, loading]);
+    lastSmartQueryRef.current = q;
 
-  // Function to generate the dynamic title
-  // Function to generate the dynamic title with the new format
+    setLoading(true);
+    try {
+      // TODO: implement /api/smart-search -> calls Perplexity, returns { packages: NPMPackage[] }
+      const res = await fetch(
+        `/api/smart-search?query=${encodeURIComponent(q)}`,
+      );
+      const data = await res.json();
+      setPackages(data.packages || []);
+      posthog.capture("smart_search_result", {
+        query: q,
+        result_count: (data.packages || []).length,
+      });
+    } catch (error) {
+      console.error("Smart search failed:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // When toggling back to classic mode, optionally clear smart results by refetching
+  useEffect(() => {
+    if (!smartMode) {
+      // Let the classic effect above refetch automatically via dependencies
+      return;
+    }
+  }, [smartMode]);
+
   const generateTitle = () => {
-    let title = `${packages.length} `;
+    if (smartMode) {
+      return loading
+        ? "Running smart search..."
+        : `${packages.length} npm packages found (Smart Search)`;
+    }
 
-    // Add the ranking type (most downloaded, most relied-upon, etc.)
+    let title = `${packages.length} `;
     if (sortBy === "growth") {
       title += "fastest growing ";
     } else if (sortBy === "downloads") {
@@ -90,21 +128,14 @@ export default function HomePage() {
     } else if (sortBy === "dependents") {
       title += "most relied-upon ";
     }
-
     title += "npm packages";
-
-    // Handle different combinations of filters
     if (debouncedDependsOn && modified) {
-      // Both filters are set
       title += ` that depend on '${debouncedDependsOn}' and have been updated in the ${daysMapping[modified]}`;
     } else if (debouncedDependsOn) {
-      // Only dependency filter is set
       title += ` that depend on '${debouncedDependsOn}'`;
     } else if (modified) {
-      // Only time period filter is set
       title += ` that have been updated in the ${daysMapping[modified]}`;
     }
-
     return title;
   };
 
@@ -121,6 +152,12 @@ export default function HomePage() {
           onDependsOnChange={setDependsOn}
           onKeywordsChange={setKeywords}
           onModifiedChange={setModified}
+          // smart search
+          smartMode={smartMode}
+          smartQuery={smartQuery}
+          onToggleSmartMode={setSmartMode}
+          onSmartQueryChange={setSmartQuery}
+          onRunSmartSearch={runSmartSearch}
         />
 
         <h2 className="mb-4 text-xl font-semibold text-[#d4d4d4]">
