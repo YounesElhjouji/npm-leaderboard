@@ -21,12 +21,29 @@ interface NPMPackage {
 }
 
 const PPLX_API_URL = "https://api.perplexity.ai/chat/completions";
+// Use a chat-capable Sonar model. "sonar-small-chat" tends to be fast/cost-effective.
 const MODEL = "sonar";
 
+// Utility: shallow redact for logs
+function redact(input: unknown, maxLen = 300): string {
+  try {
+    const s = typeof input === "string" ? input : JSON.stringify(input);
+    if (!s) return "";
+    return s.length > maxLen ? s.slice(0, maxLen) + " …[truncated]" : s;
+  } catch {
+    return "[unserializable]";
+  }
+}
+
+// Generate a simple request ID for correlation
+function reqId(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
 // Timeout helper
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+function withTimeout<T>(p: Promise<T>, ms: number, name = "op"): Promise<T> {
   return new Promise((resolve, reject) => {
-    const id = setTimeout(() => reject(new Error("Request timed out")), ms);
+    const id = setTimeout(() => reject(new Error(`${name} timed out`)), ms);
     p.then(
       (res) => {
         clearTimeout(id);
@@ -77,6 +94,14 @@ const RESPONSE_JSON_SCHEMA = {
   },
 };
 
+function sanitizeQuery(q: unknown): string {
+  if (typeof q !== "string") return "";
+  let s = q.trim();
+  // Bound size to protect downstream API and logs
+  if (s.length > 800) s = s.slice(0, 800);
+  return s;
+}
+
 // Encode npm scoped names for registry URL
 function encodeNpmName(name: string) {
   return name.startsWith("@")
@@ -115,27 +140,54 @@ async function fetchFromNpm(
   };
 }
 
-export async function GET(request: Request) {
+export async function POST(request: Request) {
+  const rid = reqId();
+  const t0 = Date.now();
+
   try {
-    const { searchParams } = new URL(request.url);
-    const query = (searchParams.get("query") || "").trim();
+    const reqBody = await request.json().catch(() => ({}));
+    const query = sanitizeQuery((reqBody as any).query);
+
+    // Basic request log
+    console.info(
+      JSON.stringify({
+        rid,
+        event: "smart_search_request",
+        query: redact(query, 500),
+      }),
+    );
 
     if (!query) {
+      console.info(
+        JSON.stringify({
+          rid,
+          event: "smart_search_early_return",
+          reason: "empty_query",
+        }),
+      );
       return NextResponse.json(
         { packages: [], otherPackages: [] },
         { status: 200 },
       );
     }
 
+    // Use secure server-side key, not NEXT_PUBLIC
     const apiKey = process.env.NEXT_PUBLIC_PPLX_API_KEY;
     if (!apiKey) {
+      console.error(
+        JSON.stringify({
+          rid,
+          event: "smart_search_config_error",
+          message: "Perplexity API key not configured",
+        }),
+      );
       return NextResponse.json(
         { error: "Perplexity API key not configured" },
         { status: 500 },
       );
     }
 
-    const body = {
+    const pplxBody = {
       model: MODEL,
       messages: [
         { role: "system", content: buildSystemPrompt() },
@@ -149,6 +201,7 @@ export async function GET(request: Request) {
       },
     };
 
+    const aiStart = Date.now();
     const pplxRes = await withTimeout(
       fetch(PPLX_API_URL, {
         method: "POST",
@@ -156,13 +209,24 @@ export async function GET(request: Request) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(pplxBody),
       }),
       15000,
+      "perplexity",
     );
+    const aiLatency = Date.now() - aiStart;
 
     if (!pplxRes.ok) {
       const text = await pplxRes.text().catch(() => "");
+      console.error(
+        JSON.stringify({
+          rid,
+          event: "smart_search_ai_http_error",
+          status: pplxRes.status,
+          details: redact(text),
+          latency_ms: aiLatency,
+        }),
+      );
       return NextResponse.json(
         { error: "Perplexity API error", details: text },
         { status: 502 },
@@ -183,10 +247,17 @@ export async function GET(request: Request) {
       ) {
         packageNames = parsed.packages;
       }
-    } catch {
+    } catch (e) {
+      console.error(
+        JSON.stringify({
+          rid,
+          event: "smart_search_ai_parse_error",
+          content_preview: redact(content),
+          error: (e as Error)?.message || "parse_error",
+        }),
+      );
       packageNames = [];
     }
-    console.log("package names", packageNames);
 
     // Normalize and dedupe while preserving order
     const seen = new Set<string>();
@@ -201,7 +272,29 @@ export async function GET(request: Request) {
       }
     }
 
+    console.info(
+      JSON.stringify({
+        rid,
+        event: "smart_search_ai_result",
+        count_raw: packageNames.length,
+        count_unique: uniqueNames.length,
+        names_preview: uniqueNames.slice(0, 10),
+        ai_latency_ms: aiLatency,
+      }),
+    );
+
     if (uniqueNames.length === 0) {
+      const totalMs = Date.now() - t0;
+      console.info(
+        JSON.stringify({
+          rid,
+          event: "smart_search_done",
+          status: "ok",
+          packages_count: 0,
+          other_count: 0,
+          duration_ms: totalMs,
+        }),
+      );
       return NextResponse.json(
         { packages: [], otherPackages: [] },
         { status: 200 },
@@ -209,10 +302,10 @@ export async function GET(request: Request) {
     }
 
     // Mongo lookup
+    const dbStart = Date.now();
     const client = await clientPromise;
     const db = client.db("npm-leaderboard");
 
-    // Exact match by name; switch to case-insensitive if needed
     const dbDocs = (await db
       .collection("packages")
       .find({ name: { $in: uniqueNames } })
@@ -227,11 +320,9 @@ export async function GET(request: Request) {
         avgGrowth: 1,
       })
       .toArray()) as NPMPackage[];
+    const dbLatency = Date.now() - dbStart;
 
-    // Map for quick membership check
     const foundSet = new Set(dbDocs.map((d) => d.name));
-
-    // Compute missing names preserving order
     const missing = uniqueNames.filter((n) => !foundSet.has(n));
 
     // Fetch missing from npm registry with modest concurrency and overall timeout
@@ -265,17 +356,18 @@ export async function GET(request: Request) {
         }
       }
 
+      const npmStart = Date.now();
       const workers = Array.from({
         length: Math.min(concurrency, queue.length),
       }).map(() => worker());
 
-      // Wait for either completion or abort
       await Promise.race([
         Promise.allSettled(workers),
         new Promise((resolve) => {
           abort.signal.addEventListener("abort", resolve, { once: true });
         }),
       ]);
+      const npmLatency = Date.now() - npmStart;
 
       clearTimeout(timeoutId);
 
@@ -292,6 +384,16 @@ export async function GET(request: Request) {
           description: string;
           link: string;
         }>;
+
+      console.info(
+        JSON.stringify({
+          rid,
+          event: "smart_search_npm_lookup",
+          missing_count: missing.length,
+          resolved_count: otherPackages.length,
+          npm_latency_ms: npmLatency,
+        }),
+      );
     }
 
     // Preserve AI order for DB packages
@@ -303,6 +405,20 @@ export async function GET(request: Request) {
       return ia - ib;
     });
 
+    const totalMs = Date.now() - t0;
+    console.info(
+      JSON.stringify({
+        rid,
+        event: "smart_search_done",
+        status: "ok",
+        packages_count: orderedDbPackages.length,
+        other_count: otherPackages.length,
+        ai_latency_ms: aiLatency,
+        db_latency_ms: dbLatency,
+        duration_ms: totalMs,
+      }),
+    );
+
     return NextResponse.json(
       {
         packages: orderedDbPackages,
@@ -311,8 +427,18 @@ export async function GET(request: Request) {
       { status: 200 },
     );
   } catch (err: unknown) {
+    const totalMs = Date.now() - t0;
     const message =
       err instanceof Error ? err.message : "Unknown error in smart search";
+    console.error(
+      JSON.stringify({
+        rid,
+        event: "smart_search_error",
+        status: "error",
+        error: message,
+        duration_ms: totalMs,
+      }),
+    );
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { SortBy, NPMPackage } from "../types";
 import Filters from "../components/Filters";
 import PackageList from "../components/PackageList";
+import OtherPackageList from "../components/OtherPackageList";
 import posthog from "posthog-js";
 
 const daysMapping: Record<string, string> = {
@@ -29,6 +30,9 @@ export default function HomePage() {
   const [modified, setModified] = useState<string>("");
 
   const [packages, setPackages] = useState<NPMPackage[]>([]);
+  const [otherPackages, setOtherPackages] = useState<
+    Array<{ name: string; description: string; link: string }>
+  >([]);
   const [loading, setLoading] = useState(true);
 
   const [smartMode, setSmartMode] = useState<boolean>(false);
@@ -70,6 +74,7 @@ export default function HomePage() {
         const res = await fetch(url);
         const data = await res.json();
         setPackages(data.packages);
+        setOtherPackages([]); // ensure empty in classic mode
       } catch (e) {
         console.error("Failed to fetch packages:", e);
       } finally {
@@ -93,25 +98,28 @@ export default function HomePage() {
     [smartLoadingIndex],
   );
 
-  // Smart search: explicit trigger (do not clear packages until user runs it)
+  // Smart search: explicit trigger
   const runSmartSearch = async () => {
     const q = smartQuery.trim();
     if (!q || q === lastSmartQueryRef.current) return;
     lastSmartQueryRef.current = q;
 
-    // Do not clear existing packages visually here; a banner will show and list will be hidden
+    // Start loading; keep list visible but show skeletons via loading flags
     setSmartLoading(true);
     try {
-      const res = await fetch(
-        `/api/smart-search?query=${encodeURIComponent(q)}`,
-      );
+      const res = await fetch("/api/smart-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: q }),
+      });
       const data = await res.json();
 
-      // Only show original leaderboard packages for now
       setPackages(data.packages || []);
+      setOtherPackages(data.otherPackages || []);
       posthog.capture("smart_search_result", {
         query: q,
         result_count: (data.packages || []).length,
+        other_count: (data.otherPackages || []).length,
       });
     } catch (e) {
       console.error("Smart search failed:", e);
@@ -137,14 +145,16 @@ export default function HomePage() {
     setKeywords("");
     setDebouncedKeywords("");
     setModified("");
+    setOtherPackages([]);
     setLoading(true); // classic effect will refetch
   };
 
-  // Title builder (single source of truth for the heading)
+  // Title builder: show combined count in smart mode
   const buildTitle = () => {
     if (smartMode) {
       if (smartLoading) return currentSmartMessage;
-      return `${packages.length} npm packages found (Smart Search)`;
+      const total = (packages?.length || 0) + (otherPackages?.length || 0);
+      return `${total} npm packages found (Smart Search)`;
     }
     if (loading) return "Loading packages...";
     let title = `${packages.length} `;
@@ -187,17 +197,26 @@ export default function HomePage() {
           onRunSmartSearch={runSmartSearch}
         />
 
-        {/* Single title (no duplication) */}
         <h2 className="mb-4 text-xl font-semibold text-[#d4d4d4]">
           {buildTitle()}
         </h2>
 
-        {/* Smart mode: while running, hide list and show a single compact banner */}
+        {/* Main packages: in smart mode, pass loading from smartLoading to show skeletons */}
         <PackageList
           packages={packages}
           loading={(smartMode && smartLoading) || (!smartMode && loading)}
           showGrowth={false}
         />
+
+        {/* Other Packages section (only visible after smart results are in, not during loading) */}
+        {smartMode && !smartLoading && otherPackages.length > 0 && (
+          <section className="mt-8">
+            <h3 className="mb-3 text-lg font-semibold text-[#d4d4d4]">
+              Smaller packages (not in leaderboard)
+            </h3>
+            <OtherPackageList items={otherPackages} />
+          </section>
+        )}
       </main>
 
       <footer className="bg-[#1e1e1e] py-2 text-center text-sm text-[#d4d4d4]">
