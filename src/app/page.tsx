@@ -113,7 +113,6 @@ export default function HomePage() {
           // limits UI
           smartFeatureEnabled={smartFeatureEnabled}
           smartDisabledSeconds={smartDisabledSeconds}
-          limitsHintEnabled={true}
           smartDisabledUntilMs={smartDisabledUntilMs}
         />
 

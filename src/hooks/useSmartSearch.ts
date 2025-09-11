@@ -23,6 +23,56 @@ const MIN_LEN = 6;
 
 type ServerBlockKind = "cooldown" | "hourly_limit" | "daily_limit";
 
+// API response types from /api/smart-search (subset needed by the hook)
+type SmartSearchQuota = {
+  allowedPerHour: number;
+  usedThisHour: number;
+  remainingThisHour: number;
+  resetAtIso: string | null;
+  userScoped: boolean;
+};
+
+type SmartSearchMeta = {
+  rid?: string;
+  cache?: "hit" | "miss" | "hit_stale";
+  quota?: SmartSearchQuota;
+  counts?: {
+    packages?: number;
+    otherPackages?: number;
+    total?: number;
+  };
+  [k: string]: unknown;
+};
+
+type SmartSearchSuccess = {
+  packages?: NPMPackage[];
+  otherPackages?: Array<{ name: string; description: string; link: string }>;
+  meta?: SmartSearchMeta;
+};
+
+type SmartSearchRateLimit = {
+  error?: string;
+  message?: string;
+  kind?: ServerBlockKind;
+  retryAfterSec?: number;
+  resetAtIso?: string;
+  allowedPerHour?: number;
+  remainingRequests?: number;
+  userScoped?: boolean;
+  rid?: string;
+};
+
+type SmartSearchError = {
+  error?: string;
+  details?: string;
+  rid?: string;
+  meta?: SmartSearchMeta;
+};
+
+type SmartSearchResponse = SmartSearchSuccess &
+  SmartSearchRateLimit &
+  SmartSearchError;
+
 export function useSmartSearch() {
   // classic
   const [sortBy, setSortBy] = useState<SortBy>("growth");
@@ -114,8 +164,8 @@ export function useSmartSearch() {
         )}&keywords=${encodeURIComponent(debouncedKeywords)}`;
         if (modified) url += `&modified=${modified}`;
         const res = await fetch(url);
-        const data = await res.json();
-        setPackages(data.packages);
+        const data: { packages: NPMPackage[] } = await res.json();
+        setPackages(Array.isArray(data.packages) ? data.packages : []);
         setOtherPackages([]); // ensure empty in classic mode
       } catch (e) {
         console.error("Failed to fetch packages:", e);
@@ -145,7 +195,6 @@ export function useSmartSearch() {
     const until = last + LOCAL_COOLDOWN_MS;
     if (until > Date.now()) {
       setSmartDisabledUntil(until);
-      // Important: do NOT set a local smartBlockNotice here
       // We only block the button for cooldown; no inline message.
     }
   }, []);
@@ -156,7 +205,6 @@ export function useSmartSearch() {
     const remaining = smartDisabledUntil - Date.now();
     if (remaining <= 0) {
       setSmartDisabledUntil(null);
-      // If a local notice existed for some reason, clear it
       setSmartBlockNotice((prev) =>
         prev && prev.kind === "local" ? null : prev,
       );
@@ -173,20 +221,12 @@ export function useSmartSearch() {
 
   // Keep local notice in sync with quota changes (but we don't show local notices anymore)
   useEffect(() => {
-    // If a previous version set a local notice, ensure it is cleared when only cooldown applies
     if (!smartDisabledUntil || smartDisabledUntil <= Date.now()) {
       setSmartBlockNotice((prev) =>
         prev && prev.kind === "local" ? null : prev,
       );
     }
   }, [smartDisabledUntil, quotaInfo?.allowedPerHour]);
-
-  // Helpers
-  const disabledSeconds = useMemo(() => {
-    if (!smartDisabledUntil) return 0;
-    const s = Math.ceil((smartDisabledUntil - Date.now()) / 1000);
-    return s > 0 ? s : 0;
-  }, [smartDisabledUntil]);
 
   const bumpLocalCooldown = () => {
     const now = Date.now();
@@ -198,14 +238,13 @@ export function useSmartSearch() {
     }
   };
 
-  const runSmartSearch = async () => {
+  const runSmartSearch = async (): Promise<void> => {
     let q = smartQuery.trim();
     if (q.length > MAX_LEN) q = q.slice(0, MAX_LEN);
     if (!q || q === lastSmartQueryRef.current || q.length < MIN_LEN) return;
 
     // If local cooldown is active, only block the button; do not show inline message
     if (smartDisabledUntil && smartDisabledUntil > Date.now()) {
-      // Keep results as-is or clear if you prefer; not showing an inline notice.
       return;
     }
 
@@ -225,17 +264,19 @@ export function useSmartSearch() {
       });
 
       const text = await res.text();
-      let data: any = {};
+      let data: SmartSearchResponse = {};
       try {
-        data = text ? JSON.parse(text) : {};
+        data = text ? (JSON.parse(text) as SmartSearchResponse) : {};
       } catch {
-        // ignore parse failure
+        // ignore parse failure; keep data as {}
       }
 
-      const rid: string | undefined = data?.meta?.rid || data?.rid;
+      const rid: string | undefined =
+        (data.meta && typeof data.meta.rid === "string" && data.meta.rid) ||
+        (typeof data.rid === "string" ? data.rid : undefined);
 
       if (res.ok) {
-        const metaQuota = data?.meta?.quota;
+        const metaQuota = data.meta?.quota;
         setQuotaInfo(
           metaQuota
             ? {
@@ -248,16 +289,23 @@ export function useSmartSearch() {
             : null,
         );
 
-        setPackages(data.packages || []);
-        setOtherPackages(data.otherPackages || []);
+        const pkgs = Array.isArray(data.packages) ? data.packages : [];
+        const others = Array.isArray(data.otherPackages)
+          ? data.otherPackages
+          : [];
+        setPackages(pkgs);
+        setOtherPackages(others);
         setSmartBlockNotice(null);
 
         posthog.capture("smart_search_success", {
           query: q,
           rid,
-          result_count: (data.packages || []).length,
-          other_count: (data.otherPackages || []).length,
-          cache: data?.meta?.cache,
+          result_count: pkgs.length,
+          other_count: others.length,
+          cache:
+            data.meta && typeof data.meta.cache === "string"
+              ? data.meta.cache
+              : undefined,
         });
         return;
       }
@@ -265,12 +313,12 @@ export function useSmartSearch() {
       // Blocked/unavailable
       if (res.status === 429 || res.status === 503) {
         const retryAfterSec =
-          typeof data?.retryAfterSec === "number" && data.retryAfterSec > 0
+          typeof data.retryAfterSec === "number" && data.retryAfterSec > 0
             ? data.retryAfterSec
             : Math.ceil(LOCAL_COOLDOWN_MS / 1000);
 
         const untilMs =
-          typeof data?.resetAtIso === "string"
+          typeof data.resetAtIso === "string"
             ? new Date(data.resetAtIso).getTime()
             : Date.now() + retryAfterSec * 1000;
 
@@ -280,43 +328,43 @@ export function useSmartSearch() {
         setPackages([]);
         setOtherPackages([]);
 
-        const serverKind: ServerBlockKind | undefined = data?.kind;
-        const allowedPerHour: number | undefined =
-          typeof data?.allowedPerHour === "number"
+        const serverKindVal: ServerBlockKind | undefined = data.kind;
+        const allowedPerHourVal: number | undefined =
+          typeof data.allowedPerHour === "number"
             ? data.allowedPerHour
             : undefined;
 
         setSmartBlockNotice({
           kind: "server",
-          serverKind: (serverKind ||
+          serverKind: (serverKindVal ||
             (res.status === 503
               ? "daily_limit"
               : "hourly_limit")) as ServerBlockKind,
           tryAgainAtMs: untilMs,
-          allowedPerHour,
+          allowedPerHour: allowedPerHourVal,
           remaining:
-            typeof data?.remainingRequests === "number"
+            typeof data.remainingRequests === "number"
               ? data.remainingRequests
               : undefined,
           resetAtIso:
-            typeof data?.resetAtIso === "string" ? data.resetAtIso : undefined,
+            typeof data.resetAtIso === "string" ? data.resetAtIso : undefined,
           userScoped:
-            typeof data?.userScoped === "boolean" ? data.userScoped : undefined,
+            typeof data.userScoped === "boolean" ? data.userScoped : undefined,
         });
 
         // Update quota info if available
         setQuotaInfo((prev) => {
-          if (typeof allowedPerHour === "number") {
+          if (typeof allowedPerHourVal === "number") {
             return {
-              allowedPerHour,
+              allowedPerHour: allowedPerHourVal,
               usedThisHour: prev?.usedThisHour,
               remainingThisHour: prev?.remainingThisHour,
               resetAtIso:
-                typeof data?.resetAtIso === "string"
+                typeof data.resetAtIso === "string"
                   ? data.resetAtIso
                   : (prev?.resetAtIso ?? null),
               userScoped:
-                typeof data?.userScoped === "boolean"
+                typeof data.userScoped === "boolean"
                   ? data.userScoped
                   : prev?.userScoped,
             };
@@ -328,7 +376,7 @@ export function useSmartSearch() {
           query: q,
           rid,
           code: res.status,
-          server_kind: serverKind,
+          server_kind: serverKindVal,
           retryAfterSec,
         });
         return;
@@ -343,13 +391,12 @@ export function useSmartSearch() {
     }
   };
 
-  const handleToggleSmartMode = (next: boolean) => {
+  const handleToggleSmartMode = (next: boolean): void => {
     if (!SMART_ENABLED) return;
 
     if (next) {
       setSmartMode(true);
-      // Important: when entering Smart mode, do NOT show an inline message for local cooldown.
-      // The Run button will be disabled by props; that's sufficient.
+      // When entering Smart mode, do NOT show an inline message for local cooldown.
       return;
     }
 
@@ -394,7 +441,7 @@ export function useSmartSearch() {
       return s > 0 ? s : 0;
     }, [smartDisabledUntil]),
     smartDisabledUntilMs: smartDisabledUntil,
-    smartBlockNotice, // now only set for server (hourly/daily) limits
+    smartBlockNotice, // only set for server (hourly/daily) limits
     quotaInfo,
     smartFeatureEnabled: SMART_ENABLED,
   };

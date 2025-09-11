@@ -146,7 +146,7 @@ const SmartNotices = ({
   ) {
     return (
       <div className="mb-4">
-        <InlineNotice kind="info">
+        <InlineNotice kind="info" lowkey={true}>
           <p className="mb-0">
             {quotaInfo.remainingThisHour} smart searches remaining
             {quotaInfo.resetAtIso && (

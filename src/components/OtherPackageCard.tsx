@@ -19,13 +19,13 @@ const OtherPackageCard = ({ item }: OtherPackageCardProps) => {
   };
 
   return (
-    <div className="w-full rounded border border-gray-600 bg-[#1f1f1f] p-4 shadow">
-      <h4 className="mb-1 text-base font-semibold">
+    <div className="w-full rounded border border-gray-700 bg-[#282828] p-4 shadow-sm transition hover:shadow-md">
+      <h4 className="mb-1 text-lg font-semibold">
         <a
           href={`https://www.npmjs.com/package/${item.name}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="break-words text-[#8b5cf6] hover:underline"
+          className="break-words text-[#7fa3cc] hover:underline"
           onClick={onClick}
         >
           {item.name}

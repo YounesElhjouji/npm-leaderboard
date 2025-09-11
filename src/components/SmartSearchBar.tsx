@@ -7,7 +7,6 @@ interface SmartSearchBarProps {
   onSmartQueryChange: (value: string) => void;
   onRunSmartSearch: () => void;
   disabledSeconds?: number;
-  showLimitsHint?: boolean;
   disabledUntilMs?: number | null;
 }
 
@@ -31,7 +30,6 @@ const SmartSearchBar = ({
   onSmartQueryChange,
   onRunSmartSearch,
   disabledSeconds = 0,
-  showLimitsHint = true,
   disabledUntilMs = null,
 }: SmartSearchBarProps) => {
   const len = smartQuery.length;

@@ -24,7 +24,6 @@ interface FiltersProps {
   // new
   smartFeatureEnabled: boolean;
   smartDisabledSeconds: number;
-  limitsHintEnabled: boolean;
   // optional: absolute timestamp millis when it will be re-enabled
   smartDisabledUntilMs?: number | null;
 }
@@ -49,7 +48,6 @@ const Filters = (props: FiltersProps) => {
     onRunSmartSearch,
     smartFeatureEnabled,
     smartDisabledSeconds,
-    limitsHintEnabled,
     smartDisabledUntilMs,
   } = props;
 
@@ -66,7 +64,6 @@ const Filters = (props: FiltersProps) => {
             onSmartQueryChange={onSmartQueryChange}
             onRunSmartSearch={onRunSmartSearch}
             disabledSeconds={smartDisabledSeconds}
-            showLimitsHint={limitsHintEnabled}
             disabledUntilMs={smartDisabledUntilMs ?? null}
           />
         )}
