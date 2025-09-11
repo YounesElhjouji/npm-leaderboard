@@ -152,6 +152,11 @@ async function fetchFromNpm(
   };
 }
 
+// Helper to compute ISO timestamp in the future
+function isoAfterSeconds(sec: number): string {
+  return new Date(Date.now() + Math.max(0, sec) * 1000).toISOString();
+}
+
 export async function POST(request: Request) {
   const rid = reqId();
   const t0 = Date.now();
@@ -171,6 +176,10 @@ export async function POST(request: Request) {
   const npmFallbackTimeout =
     parseInt(process.env.SMART_SEARCH_NPM_FALLBACK_TIMEOUT_MS || "12000", 10) ||
     12000;
+  const hourlyLimit = parseInt(
+    process.env.SMART_SEARCH_HOURLY_LIMIT || "5",
+    10,
+  );
 
   try {
     const reqBody = await request.json().catch(() => ({}));
@@ -206,7 +215,18 @@ export async function POST(request: Request) {
         {
           packages: [],
           otherPackages: [],
-          meta: { rid, counts: { packages: 0, otherPackages: 0, total: 0 } },
+          meta: {
+            rid,
+            counts: { packages: 0, otherPackages: 0, total: 0 },
+            quota: {
+              // We cannot increment counters on empty query; return static info
+              allowedPerHour: hourlyLimit,
+              usedThisHour: 0,
+              remainingThisHour: hourlyLimit,
+              resetAtIso: null,
+              userScoped: true,
+            },
+          },
         },
         { status: 200 },
       );
@@ -233,15 +253,20 @@ export async function POST(request: Request) {
         error_code: "cooldown",
         retry_after_sec: cd.ttl,
       });
-      const resp = NextResponse.json(
-        {
-          error: "rate_limited",
-          message: "Please wait a few seconds before trying again.",
-          retryAfterSec: cd.ttl,
-          rid,
-        },
-        { status: 429 },
-      );
+
+      // Include enriched rate-limit info
+      const payload = {
+        error: "rate_limited",
+        message: "Please wait a few seconds before trying again.",
+        kind: "cooldown" as const,
+        retryAfterSec: cd.ttl,
+        resetAtIso: isoAfterSeconds(cd.ttl),
+        allowedPerHour: hourlyLimit,
+        remainingRequests: undefined as number | undefined, // cooldown is short; remaining is not meaningful here
+        userScoped: true,
+        rid,
+      };
+      const resp = NextResponse.json(payload, { status: 429 });
       resp.headers.set("Retry-After", String(cd.ttl));
       return resp;
     }
@@ -255,10 +280,6 @@ export async function POST(request: Request) {
     }));
 
     // NEW: human-readable hourly usage log (plus structured fields)
-    const hourlyLimit = parseInt(
-      process.env.SMART_SEARCH_HOURLY_LIMIT || "5",
-      10,
-    );
     console.info(
       JSON.stringify({
         rid,
@@ -267,6 +288,7 @@ export async function POST(request: Request) {
         ip,
         count: hourly.count,
         limit: hourlyLimit,
+        resetSec: hourly.resetSec,
       }),
     );
 
@@ -294,15 +316,21 @@ export async function POST(request: Request) {
         retry_after_sec: hourly.resetSec,
         count: hourly.count,
       });
-      const resp = NextResponse.json(
-        {
-          error: "rate_limited",
-          message: "Hourly limit reached. Try again later.",
-          retryAfterSec: hourly.resetSec,
-          rid,
-        },
-        { status: 429 },
-      );
+
+      // Enriched hourly rate limit info
+      const remainingRequests = 0;
+      const payload = {
+        error: "rate_limited",
+        message: "Hourly limit reached. Try again later.",
+        kind: "hourly_limit" as const,
+        retryAfterSec: hourly.resetSec,
+        resetAtIso: isoAfterSeconds(hourly.resetSec),
+        allowedPerHour: hourlyLimit,
+        remainingRequests,
+        userScoped: true,
+        rid,
+      };
+      const resp = NextResponse.json(payload, { status: 429 });
       resp.headers.set("Retry-After", String(hourly.resetSec));
       return resp;
     }
@@ -312,6 +340,7 @@ export async function POST(request: Request) {
       allowed: true,
       remaining: 0,
       count: 0,
+      resetSec: undefined as number | undefined,
     }));
     if (!circuit.allowed) {
       const totalMs = Date.now() - t0;
@@ -326,11 +355,23 @@ export async function POST(request: Request) {
         error_code: "circuit_breaker",
         count: circuit.count,
       });
+
+      // Daily/global limit payload
+      const retryAfterSec =
+        typeof circuit.remaining === "number" && circuit.remaining > 0
+          ? circuit.remaining
+          : 60 * 60 * 24; // fallback 24h if not provided
       return NextResponse.json(
         {
           error: "unavailable",
           message:
-            "Smart Search daily capacity reached. Please use classic filters and try again tomorrow.",
+            "Smart Search daily capacity reached. Please use classic filters and try again later.",
+          kind: "daily_limit",
+          retryAfterSec,
+          resetAtIso: isoAfterSeconds(retryAfterSec),
+          allowedPerHour: hourlyLimit, // still report per-user quota
+          remainingRequests: 0,
+          userScoped: false,
           rid,
         },
         { status: 503 },
@@ -341,6 +382,24 @@ export async function POST(request: Request) {
     let cached = await cacheGet<any>(queryNorm).catch(() => null);
     if (cached) {
       const totalMs = Date.now() - t0;
+
+      // Attach quota meta so frontend can display "x/y until time"
+      const usedThisHour = typeof hourly.count === "number" ? hourly.count : 0;
+      const remainingThisHour = Math.max(0, hourlyLimit - usedThisHour);
+      cached.meta = {
+        ...(cached.meta || {}),
+        rid,
+        counts: cached.meta?.counts,
+        cache: "hit",
+        quota: {
+          allowedPerHour: hourlyLimit,
+          usedThisHour,
+          remainingThisHour,
+          resetAtIso: isoAfterSeconds(hourly.resetSec ?? 0),
+          userScoped: true,
+        },
+      };
+
       console.info(
         JSON.stringify({
           rid,
@@ -361,6 +420,7 @@ export async function POST(request: Request) {
         pkg_count: cached?.packages?.length ?? 0,
         other_count: cached?.otherPackages?.length ?? 0,
       });
+
       const packagesLen = cached?.packages?.length ?? 0;
       const otherLen = cached?.otherPackages?.length ?? 0;
       return NextResponse.json(
@@ -375,6 +435,7 @@ export async function POST(request: Request) {
               total: packagesLen + otherLen,
             },
             cache: "hit",
+            quota: cached.meta?.quota,
           },
         },
         { status: 200 },
@@ -403,7 +464,23 @@ export async function POST(request: Request) {
         error_code: "config_missing",
       });
       return NextResponse.json(
-        { error: "Perplexity API key not configured", rid },
+        {
+          error: "Perplexity API key not configured",
+          rid,
+          meta: {
+            quota: {
+              allowedPerHour: hourlyLimit,
+              usedThisHour: typeof hourly.count === "number" ? hourly.count : 0,
+              remainingThisHour: Math.max(
+                0,
+                hourlyLimit -
+                  (typeof hourly.count === "number" ? hourly.count : 0),
+              ),
+              resetAtIso: isoAfterSeconds(hourly.resetSec ?? 0),
+              userScoped: true,
+            },
+          },
+        },
         { status: 500 },
       );
     }
@@ -456,6 +533,11 @@ export async function POST(request: Request) {
       cached = await cacheGet<any>(queryNorm).catch(() => null);
       if (cached) {
         const totalMs = Date.now() - t0;
+
+        const usedThisHour =
+          typeof hourly.count === "number" ? hourly.count : 0;
+        const remainingThisHour = Math.max(0, hourlyLimit - usedThisHour);
+
         await auditLog({
           rid,
           ts: Date.now(),
@@ -473,6 +555,13 @@ export async function POST(request: Request) {
               ...(cached.meta || {}),
               rid,
               cache: "hit_stale",
+              quota: {
+                allowedPerHour: hourlyLimit,
+                usedThisHour,
+                remainingThisHour,
+                resetAtIso: isoAfterSeconds(hourly.resetSec ?? 0),
+                userScoped: true,
+              },
             },
           },
           { status: 200 },
@@ -490,7 +579,24 @@ export async function POST(request: Request) {
         error_code: "ai_http",
       });
       return NextResponse.json(
-        { error: "Perplexity API error", details: text, rid },
+        {
+          error: "Perplexity API error",
+          details: text,
+          rid,
+          meta: {
+            quota: {
+              allowedPerHour: hourlyLimit,
+              usedThisHour: typeof hourly.count === "number" ? hourly.count : 0,
+              remainingThisHour: Math.max(
+                0,
+                hourlyLimit -
+                  (typeof hourly.count === "number" ? hourly.count : 0),
+              ),
+              resetAtIso: isoAfterSeconds(hourly.resetSec ?? 0),
+              userScoped: true,
+            },
+          },
+        },
         { status: 502 },
       );
     }
@@ -549,6 +655,10 @@ export async function POST(request: Request) {
 
     if (uniqueNames.length === 0) {
       const totalMs = Date.now() - t0;
+
+      const usedThisHour = typeof hourly.count === "number" ? hourly.count : 0;
+      const remainingThisHour = Math.max(0, hourlyLimit - usedThisHour);
+
       await auditLog({
         rid,
         ts: Date.now(),
@@ -564,15 +674,50 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           packages: [],
-          otherPackages: [],
-          meta: {
-            rid,
-            counts: { packages: 0, otherPackages: 0, total: 0 },
-            cache: "miss",
-          },
         },
-        { status: 200 },
-      );
+        {
+          status: 200,
+          headers: {},
+        },
+      ).json
+        ? NextResponse.json(
+            {
+              packages: [],
+              otherPackages: [],
+              meta: {
+                rid,
+                counts: { packages: 0, otherPackages: 0, total: 0 },
+                cache: "miss",
+                quota: {
+                  allowedPerHour: hourlyLimit,
+                  usedThisHour,
+                  remainingThisHour,
+                  resetAtIso: isoAfterSeconds(hourly.resetSec ?? 0),
+                  userScoped: true,
+                },
+              },
+            },
+            { status: 200 },
+          )
+        : NextResponse.json(
+            {
+              packages: [],
+              otherPackages: [],
+              meta: {
+                rid,
+                counts: { packages: 0, otherPackages: 0, total: 0 },
+                cache: "miss",
+                quota: {
+                  allowedPerHour: hourlyLimit,
+                  usedThisHour,
+                  remainingThisHour,
+                  resetAtIso: isoAfterSeconds(hourly.resetSec ?? 0),
+                  userScoped: true,
+                },
+              },
+            },
+            { status: 200 },
+          );
     }
 
     // Mongo lookup
@@ -685,7 +830,10 @@ export async function POST(request: Request) {
     const packagesLen = orderedDbPackages.length;
     const otherLen = otherPackages.length;
 
-    // Build response with meta and counts
+    // Build response with meta, counts, and quota
+    const usedThisHour = typeof hourly.count === "number" ? hourly.count : 0;
+    const remainingThisHour = Math.max(0, hourlyLimit - usedThisHour);
+
     const responsePayload = {
       packages: orderedDbPackages,
       otherPackages,
@@ -701,6 +849,13 @@ export async function POST(request: Request) {
           aiLatencyMs: aiLatency,
           dbLatencyMs: dbLatency,
           totalMs: Date.now() - t0,
+        },
+        quota: {
+          allowedPerHour: hourlyLimit,
+          usedThisHour,
+          remainingThisHour,
+          resetAtIso: isoAfterSeconds(hourly.resetSec ?? 0),
+          userScoped: true,
         },
       },
     };

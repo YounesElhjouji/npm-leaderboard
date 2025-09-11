@@ -7,15 +7,17 @@ interface InlineNoticeProps {
 }
 
 const kinds = {
+  // For informational quota hints
   info: {
-    border: "border-blue-700",
-    bg: "bg-[#1f2a3a]",
-    text: "text-[#cfe0ff]",
+    border: "border-sky-800",
+    bg: "bg-[#1e2d3f]",
+    text: "text-sky-200",
   },
+  // For rate limit blocks
   warning: {
-    border: "border-yellow-700",
-    bg: "bg-[#3a2f1f]",
-    text: "text-[#fff1c2]",
+    border: "border-violet-700",
+    bg: "bg-[#28213b]",
+    text: "text-violet-200",
   },
 };
 
@@ -31,8 +33,8 @@ const InlineNotice = ({
       role="status"
       aria-live="polite"
     >
-      {title && <div className="mb-1 font-semibold">{title}</div>}
-      <div className="text-sm leading-6">{children}</div>
+      {title && <div className="mb-2 font-semibold">{title}</div>}
+      <div className="text-base leading-7">{children}</div>
     </div>
   );
 };

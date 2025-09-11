@@ -36,11 +36,11 @@ const SmartSearchBar = ({
 }: SmartSearchBarProps) => {
   const len = smartQuery.length;
   const tooShort = len > 0 && len < MIN_LEN;
-  const tooLong = len > MAX_LEN; // Should not happen with maxLength
+  const tooLong = len > MAX_LEN;
 
   const overLimit = disabledSeconds > 0 || !!disabledUntilMs;
 
-  // Block the button when overLimit, but DO NOT change its visible label per requirement
+  // Keep the button text constant; just disable it when overLimit
   const disabled =
     loading || !smartQuery.trim() || smartQuery.length < MIN_LEN || overLimit;
 
@@ -48,9 +48,6 @@ const SmartSearchBar = ({
     disabledUntilMs && disabledUntilMs > Date.now()
       ? formatClockTime(disabledUntilMs)
       : null;
-
-  // Keep the label constant as "Run" even when disabled due to local cooldown
-  const buttonLabel = "Run";
 
   const handleChange = (v: string) => {
     onSmartQueryChange(v);
@@ -68,8 +65,8 @@ const SmartSearchBar = ({
     }
   };
 
-  // Determine if helper row should render at all
-  const shouldShowHelper = showLimitsHint || tooShort;
+  // Render a concise hint near the button when rate-limited locally
+  const showLocalHint = overLimit && !!tryAgainAt;
 
   return (
     <div>
@@ -80,7 +77,6 @@ const SmartSearchBar = ({
         Smart Search
       </label>
 
-      {/* New Integrated Input Wrapper */}
       <div className="mt-1 flex items-center gap-3 rounded-md border border-violet-700 bg-[#252526] px-3 py-1.5 focus-within:ring-2 focus-within:ring-violet-500">
         <SparkleIcon className="flex-shrink-0 text-violet-400" />
         <input
@@ -96,6 +92,7 @@ const SmartSearchBar = ({
           maxLength={MAX_LEN}
           autoComplete="off"
         />
+
         <div className="flex flex-shrink-0 items-center gap-3">
           <span
             className={`font-mono text-xs ${
@@ -104,19 +101,27 @@ const SmartSearchBar = ({
           >
             {len}/{MAX_LEN}
           </span>
-          <button
-            type="button"
-            onClick={handleRun}
-            disabled={disabled}
-            className="inline-flex h-[30px] items-center justify-center rounded bg-violet-600 px-3 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:opacity-60"
-            title={
-              overLimit && tryAgainAt
-                ? `Rate limited. You can try again at ${tryAgainAt}.`
-                : "Run Smart Search"
-            }
-          >
-            {buttonLabel}
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRun}
+              disabled={disabled}
+              className="inline-flex h-[30px] items-center justify-center rounded bg-violet-600 px-3 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:opacity-60"
+              title={
+                showLocalHint
+                  ? `Rate limited. Try again at ${tryAgainAt}.`
+                  : "Run Smart Search"
+              }
+            >
+              Run
+            </button>
+            {showLocalHint && (
+              <span className="text-xs text-[#a8a8a8]">
+                Try again at {tryAgainAt}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>
