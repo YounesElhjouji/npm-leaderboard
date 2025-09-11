@@ -1,5 +1,16 @@
 import { NextResponse } from "next/server";
 import clientPromise from "../../../../lib/mongodb";
+import crypto from "crypto";
+import {
+  getRedis,
+  normalizeQuery,
+  cacheGet,
+  cacheSet,
+  cooldownCheckAndSet,
+  hourlyCheckAndIncrement,
+  circuitCheckAndIncrement,
+  auditLog,
+} from "../../../lib/redis-smart-search";
 
 interface WeeklyTrend {
   week_ending: string;
@@ -21,8 +32,8 @@ interface NPMPackage {
 }
 
 const PPLX_API_URL = "https://api.perplexity.ai/chat/completions";
-// Use a chat-capable Sonar model. "sonar-small-chat" tends to be fast/cost-effective.
-const MODEL = "sonar";
+const DEFAULT_MODEL = "sonar";
+const PPLX_MODEL = process.env.PPLX_MODEL || DEFAULT_MODEL;
 
 // Utility: shallow redact for logs
 function redact(input: unknown, maxLen = 300): string {
@@ -67,6 +78,7 @@ function buildSystemPrompt() {
     "- Do not include explanations, markdown, comments, or any extra fields.",
     "- Do not include duplicates.",
     "- Prefer actively maintained, widely used packages when relevant.",
+    "- Return at most 20 names.",
   ].join("\n");
 }
 
@@ -88,6 +100,7 @@ const RESPONSE_JSON_SCHEMA = {
       packages: {
         type: "array",
         items: { type: "string" },
+        maxItems: 20,
       },
     },
     required: ["packages"],
@@ -144,34 +157,232 @@ export async function POST(request: Request) {
   const rid = reqId();
   const t0 = Date.now();
 
+  // Extract IP best-effort
+  const ipHeader =
+    (request.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
+    request.headers.get("x-real-ip") ||
+    "";
+  const ip = ipHeader || "unknown";
+
+  const cooldownSec =
+    parseInt(process.env.SMART_SEARCH_COOLDOWN_SEC || "3", 10) || 3;
+  const pplxTimeout =
+    parseInt(process.env.SMART_SEARCH_PERPLEXITY_TIMEOUT_MS || "15000", 10) ||
+    15000;
+  const npmFallbackTimeout =
+    parseInt(process.env.SMART_SEARCH_NPM_FALLBACK_TIMEOUT_MS || "12000", 10) ||
+    12000;
+
   try {
     const reqBody = await request.json().catch(() => ({}));
-    const query = sanitizeQuery((reqBody as any).query);
+    const rawQuery = sanitizeQuery((reqBody as any).query);
+    const queryNorm = normalizeQuery(rawQuery);
 
     // Basic request log
     console.info(
       JSON.stringify({
         rid,
         event: "smart_search_request",
-        query: redact(query, 500),
+        ip,
+        query: redact(rawQuery, 500),
+        query_norm: queryNorm,
       }),
     );
 
-    if (!query) {
-      console.info(
-        JSON.stringify({
-          rid,
-          event: "smart_search_early_return",
-          reason: "empty_query",
-        }),
-      );
+    if (!rawQuery) {
+      const totalMs = Date.now() - t0;
+      await auditLog({
+        rid,
+        ts: Date.now(),
+        ip,
+        query_norm: queryNorm,
+        status: 200,
+        latency_ms: totalMs,
+        cache: "none",
+        pkg_count: 0,
+        other_count: 0,
+        note: "empty_query",
+      });
       return NextResponse.json(
-        { packages: [], otherPackages: [] },
+        {
+          packages: [],
+          otherPackages: [],
+          meta: { rid, counts: { packages: 0, otherPackages: 0, total: 0 } },
+        },
         { status: 200 },
       );
     }
 
-    // Use secure server-side key, not NEXT_PUBLIC
+    // Ensure Redis is initialized (best-effort)
+    await getRedis().catch(() => {});
+
+    // Cooldown per IP
+    const cd = await cooldownCheckAndSet(ip, cooldownSec).catch(() => ({
+      active: false,
+      ttl: cooldownSec,
+    }));
+    if (cd.active) {
+      const totalMs = Date.now() - t0;
+      await auditLog({
+        rid,
+        ts: Date.now(),
+        ip,
+        query_norm: queryNorm,
+        status: 429,
+        latency_ms: totalMs,
+        cache: "none",
+        error_code: "cooldown",
+        retry_after_sec: cd.ttl,
+      });
+      const resp = NextResponse.json(
+        {
+          error: "rate_limited",
+          message: "Please wait a few seconds before trying again.",
+          retryAfterSec: cd.ttl,
+          rid,
+        },
+        { status: 429 },
+      );
+      resp.headers.set("Retry-After", String(cd.ttl));
+      return resp;
+    }
+
+    // Hourly limit per IP (strict, atomic)
+    const hourly = await hourlyCheckAndIncrement(ip).catch(() => ({
+      allowed: true,
+      remaining: 0,
+      resetSec: 30,
+      count: 0,
+    }));
+
+    // NEW: human-readable hourly usage log (plus structured fields)
+    const hourlyLimit = parseInt(
+      process.env.SMART_SEARCH_HOURLY_LIMIT || "5",
+      10,
+    );
+    console.info(
+      JSON.stringify({
+        rid,
+        event: "smart_search_hourly_progress",
+        message: `request from user with ip ${ip} ${hourly.count}/${hourlyLimit} so far in this hour`,
+        ip,
+        count: hourly.count,
+        limit: hourlyLimit,
+      }),
+    );
+
+    if (!hourly.allowed) {
+      const totalMs = Date.now() - t0;
+      console.info(
+        JSON.stringify({
+          rid,
+          event: "smart_search_hourly_block",
+          ip,
+          count: hourly.count,
+          limit: hourlyLimit,
+          resetSec: hourly.resetSec,
+        }),
+      );
+      await auditLog({
+        rid,
+        ts: Date.now(),
+        ip,
+        query_norm: queryNorm,
+        status: 429,
+        latency_ms: totalMs,
+        cache: "none",
+        error_code: "hourly_limit",
+        retry_after_sec: hourly.resetSec,
+        count: hourly.count,
+      });
+      const resp = NextResponse.json(
+        {
+          error: "rate_limited",
+          message: "Hourly limit reached. Try again later.",
+          retryAfterSec: hourly.resetSec,
+          rid,
+        },
+        { status: 429 },
+      );
+      resp.headers.set("Retry-After", String(hourly.resetSec));
+      return resp;
+    }
+
+    // Optional global circuit breaker (daily)
+    const circuit = await circuitCheckAndIncrement().catch(() => ({
+      allowed: true,
+      remaining: 0,
+      count: 0,
+    }));
+    if (!circuit.allowed) {
+      const totalMs = Date.now() - t0;
+      await auditLog({
+        rid,
+        ts: Date.now(),
+        ip,
+        query_norm: queryNorm,
+        status: 503,
+        latency_ms: totalMs,
+        cache: "none",
+        error_code: "circuit_breaker",
+        count: circuit.count,
+      });
+      return NextResponse.json(
+        {
+          error: "unavailable",
+          message:
+            "Smart Search daily capacity reached. Please use classic filters and try again tomorrow.",
+          rid,
+        },
+        { status: 503 },
+      );
+    }
+
+    // Cache lookup (normalized query)
+    let cached = await cacheGet<any>(queryNorm).catch(() => null);
+    if (cached) {
+      const totalMs = Date.now() - t0;
+      console.info(
+        JSON.stringify({
+          rid,
+          event: "smart_search_cache_hit",
+          packages_count: cached?.packages?.length ?? 0,
+          other_count: cached?.otherPackages?.length ?? 0,
+          duration_ms: totalMs,
+        }),
+      );
+      await auditLog({
+        rid,
+        ts: Date.now(),
+        ip,
+        query_norm: queryNorm,
+        status: 200,
+        latency_ms: totalMs,
+        cache: "hit",
+        pkg_count: cached?.packages?.length ?? 0,
+        other_count: cached?.otherPackages?.length ?? 0,
+      });
+      const packagesLen = cached?.packages?.length ?? 0;
+      const otherLen = cached?.otherPackages?.length ?? 0;
+      return NextResponse.json(
+        {
+          ...cached,
+          meta: {
+            ...(cached.meta || {}),
+            rid,
+            counts: {
+              packages: packagesLen,
+              otherPackages: otherLen,
+              total: packagesLen + otherLen,
+            },
+            cache: "hit",
+          },
+        },
+        { status: 200 },
+      );
+    }
+
+    // Use secure server-side key
     const apiKey = process.env.PPLX_API_KEY;
     if (!apiKey) {
       console.error(
@@ -181,17 +392,28 @@ export async function POST(request: Request) {
           message: "Perplexity API key not configured",
         }),
       );
+      const totalMs = Date.now() - t0;
+      await auditLog({
+        rid,
+        ts: Date.now(),
+        ip,
+        query_norm: queryNorm,
+        status: 500,
+        latency_ms: totalMs,
+        cache: "none",
+        error_code: "config_missing",
+      });
       return NextResponse.json(
-        { error: "Perplexity API key not configured" },
+        { error: "Perplexity API key not configured", rid },
         { status: 500 },
       );
     }
 
     const pplxBody = {
-      model: MODEL,
+      model: PPLX_MODEL,
       messages: [
         { role: "system", content: buildSystemPrompt() },
-        { role: "user", content: buildUserPrompt(query) },
+        { role: "user", content: buildUserPrompt(rawQuery) },
       ],
       temperature: 0.2,
       max_tokens: 256,
@@ -211,9 +433,13 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify(pplxBody),
       }),
-      15000,
+      pplxTimeout,
       "perplexity",
-    );
+    ).catch((e) => {
+      throw new Error(
+        `Perplexity error: ${e instanceof Error ? e.message : "unknown"}`,
+      );
+    });
     const aiLatency = Date.now() - aiStart;
 
     if (!pplxRes.ok) {
@@ -227,8 +453,45 @@ export async function POST(request: Request) {
           latency_ms: aiLatency,
         }),
       );
+      // If cache exists (race), serve it; else 502
+      cached = await cacheGet<any>(queryNorm).catch(() => null);
+      if (cached) {
+        const totalMs = Date.now() - t0;
+        await auditLog({
+          rid,
+          ts: Date.now(),
+          ip,
+          query_norm: queryNorm,
+          status: 200,
+          latency_ms: totalMs,
+          cache: "hit_stale",
+          note: "served_stale_on_ai_error",
+        });
+        return NextResponse.json(
+          {
+            ...cached,
+            meta: {
+              ...(cached.meta || {}),
+              rid,
+              cache: "hit_stale",
+            },
+          },
+          { status: 200 },
+        );
+      }
+      const totalMs = Date.now() - t0;
+      await auditLog({
+        rid,
+        ts: Date.now(),
+        ip,
+        query_norm: queryNorm,
+        status: 502,
+        latency_ms: totalMs,
+        cache: "miss",
+        error_code: "ai_http",
+      });
       return NextResponse.json(
-        { error: "Perplexity API error", details: text },
+        { error: "Perplexity API error", details: text, rid },
         { status: 502 },
       );
     }
@@ -259,17 +522,19 @@ export async function POST(request: Request) {
       packageNames = [];
     }
 
-    // Normalize and dedupe while preserving order
+    // Normalize and dedupe while preserving order and enforcing ≤20
     const seen = new Set<string>();
     const uniqueNames: string[] = [];
     for (const n of packageNames) {
       if (typeof n !== "string") continue;
       const trimmed = n.trim();
       if (!trimmed) continue;
-      if (!seen.has(trimmed)) {
-        seen.add(trimmed);
+      const key = trimmed.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
         uniqueNames.push(trimmed);
       }
+      if (uniqueNames.length >= 20) break;
     }
 
     console.info(
@@ -285,18 +550,28 @@ export async function POST(request: Request) {
 
     if (uniqueNames.length === 0) {
       const totalMs = Date.now() - t0;
-      console.info(
-        JSON.stringify({
-          rid,
-          event: "smart_search_done",
-          status: "ok",
-          packages_count: 0,
-          other_count: 0,
-          duration_ms: totalMs,
-        }),
-      );
+      await auditLog({
+        rid,
+        ts: Date.now(),
+        ip,
+        query_norm: queryNorm,
+        status: 200,
+        latency_ms: totalMs,
+        cache: "miss",
+        pkg_count: 0,
+        other_count: 0,
+        note: "no_ai_names",
+      });
       return NextResponse.json(
-        { packages: [], otherPackages: [] },
+        {
+          packages: [],
+          otherPackages: [],
+          meta: {
+            rid,
+            counts: { packages: 0, otherPackages: 0, total: 0 },
+            cache: "miss",
+          },
+        },
         { status: 200 },
       );
     }
@@ -334,7 +609,10 @@ export async function POST(request: Request) {
 
     if (missing.length > 0) {
       const abort = new AbortController();
-      const timeoutId = setTimeout(() => abort.abort(), 12000); // 12s overall for fallbacks
+      const timeoutId = setTimeout(
+        () => abort.abort(),
+        npmFallbackTimeout, // 12s default for fallbacks
+      );
 
       const concurrency = 4;
       const queue = [...missing];
@@ -405,27 +683,58 @@ export async function POST(request: Request) {
       return ia - ib;
     });
 
+    const packagesLen = orderedDbPackages.length;
+    const otherLen = otherPackages.length;
+
+    // Build response with meta and counts
+    const responsePayload = {
+      packages: orderedDbPackages,
+      otherPackages,
+      meta: {
+        rid,
+        cache: "miss",
+        counts: {
+          packages: packagesLen,
+          otherPackages: otherLen,
+          total: packagesLen + otherLen,
+        },
+        timings: {
+          aiLatencyMs: aiLatency,
+          dbLatencyMs: dbLatency,
+          totalMs: Date.now() - t0,
+        },
+      },
+    };
+
+    // Cache the payload (best-effort)
+    await cacheSet(queryNorm, responsePayload).catch(() => {});
+
     const totalMs = Date.now() - t0;
     console.info(
       JSON.stringify({
         rid,
         event: "smart_search_done",
         status: "ok",
-        packages_count: orderedDbPackages.length,
-        other_count: otherPackages.length,
+        packages_count: packagesLen,
+        other_count: otherLen,
         ai_latency_ms: aiLatency,
         db_latency_ms: dbLatency,
         duration_ms: totalMs,
       }),
     );
+    await auditLog({
+      rid,
+      ts: Date.now(),
+      ip,
+      query_norm: queryNorm,
+      status: 200,
+      latency_ms: totalMs,
+      cache: "miss",
+      pkg_count: packagesLen,
+      other_count: otherLen,
+    });
 
-    return NextResponse.json(
-      {
-        packages: orderedDbPackages,
-        otherPackages,
-      },
-      { status: 200 },
-    );
+    return NextResponse.json(responsePayload, { status: 200 });
   } catch (err: unknown) {
     const totalMs = Date.now() - t0;
     const message =
@@ -439,6 +748,16 @@ export async function POST(request: Request) {
         duration_ms: totalMs,
       }),
     );
-    return NextResponse.json({ error: message }, { status: 500 });
+    await auditLog({
+      rid,
+      ts: Date.now(),
+      ip,
+      status: 500,
+      latency_ms: totalMs,
+      cache: "none",
+      error_code: "server_error",
+      error: message,
+    });
+    return NextResponse.json({ error: message, rid }, { status: 500 });
   }
 }
