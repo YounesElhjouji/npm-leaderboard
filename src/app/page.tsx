@@ -52,9 +52,11 @@ export default function HomePage() {
     smartBlockNotice,
     quotaInfo,
     smartFeatureEnabled,
+
+    // NEW
+    smartGenericError,
   } = useSmartSearch();
 
-  // Title builder: show combined count in smart mode
   const title = useMemo(() => {
     if (smartMode) {
       if (smartLoading) return smartLoadingMessages[smartLoadingIndex];
@@ -113,20 +115,21 @@ export default function HomePage() {
           // limits UI
           smartFeatureEnabled={smartFeatureEnabled}
           smartDisabledSeconds={smartDisabledSeconds}
+          limitsHintEnabled={true}
           smartDisabledUntilMs={smartDisabledUntilMs}
         />
 
-        {/* Friendly, inline notices (limits/quota), shown even before a query */}
         <SmartNotices
           smartMode={smartMode}
           smartBlockNotice={smartBlockNotice}
           quotaInfo={quotaInfo}
           onSwitchToClassic={() => handleToggleSmartMode(false)}
+          smartGenericError={smartGenericError}
         />
 
         <h2 className="mb-4 text-xl font-semibold text-[#d4d4d4]">{title}</h2>
 
-        {!smartBlockNotice && (
+        {!smartBlockNotice && !smartGenericError && (
           <PackageList
             packages={packages}
             loading={(smartMode && smartLoading) || (!smartMode && loading)}
@@ -137,6 +140,7 @@ export default function HomePage() {
         {smartMode &&
           !smartLoading &&
           !smartBlockNotice &&
+          !smartGenericError &&
           otherPackages.length > 0 && (
             <section className="mt-8">
               <h3 className="mb-3 text-lg font-semibold text-[#d4d4d4]">

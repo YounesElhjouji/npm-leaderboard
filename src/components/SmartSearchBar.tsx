@@ -1,5 +1,4 @@
 import posthog from "posthog-js";
-import { formatClockTime } from "../utils/time";
 
 interface SmartSearchBarProps {
   smartQuery: string;
@@ -42,11 +41,6 @@ const SmartSearchBar = ({
   const disabled =
     loading || !smartQuery.trim() || smartQuery.length < MIN_LEN || overLimit;
 
-  const tryAgainAt =
-    disabledUntilMs && disabledUntilMs > Date.now()
-      ? formatClockTime(disabledUntilMs)
-      : null;
-
   const handleChange = (v: string) => {
     onSmartQueryChange(v);
   };
@@ -62,9 +56,6 @@ const SmartSearchBar = ({
       handleRun();
     }
   };
-
-  // Render a concise hint near the button when rate-limited locally
-  const showLocalHint = overLimit && !!tryAgainAt;
 
   return (
     <div>
@@ -83,7 +74,7 @@ const SmartSearchBar = ({
           value={smartQuery}
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Describe what you need..."
+          placeholder='e.g. "lightweight i18n library for React, supports TypeScript and SSR"'
           className="flex-1 border-none bg-transparent p-0 text-[#d4d4d4] placeholder:text-[#6a6a6a] focus:outline-none focus:ring-0"
           disabled={loading}
           minLength={MIN_LEN}
@@ -106,19 +97,11 @@ const SmartSearchBar = ({
               onClick={handleRun}
               disabled={disabled}
               className="inline-flex h-[30px] items-center justify-center rounded bg-violet-600 px-3 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:opacity-60"
-              title={
-                showLocalHint
-                  ? `Rate limited. Try again at ${tryAgainAt}.`
-                  : "Run Smart Search"
-              }
+              title="Run Smart Search"
             >
               Run
             </button>
-            {showLocalHint && (
-              <span className="text-xs text-[#a8a8a8]">
-                Try again at {tryAgainAt}
-              </span>
-            )}
+            {/* No cooldown hint text shown; button simply disabled */}
           </div>
         </div>
       </div>

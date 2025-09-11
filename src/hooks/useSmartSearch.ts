@@ -127,6 +127,9 @@ export function useSmartSearch() {
     | null
   >(null);
 
+  // NEW: generic error state for unknown failures (non rate-limit)
+  const [smartGenericError, setSmartGenericError] = useState<boolean>(false);
+
   // Page view
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -185,7 +188,7 @@ export function useSmartSearch() {
     return () => clearInterval(id);
   }, [smartLoading]);
 
-  // Local cooldown hydration (do NOT show inline message here; only block button)
+  // Local cooldown hydration
   useEffect(() => {
     if (typeof window === "undefined") return;
     const tsRaw = localStorage.getItem("smart.lastRunAt");
@@ -195,7 +198,6 @@ export function useSmartSearch() {
     const until = last + LOCAL_COOLDOWN_MS;
     if (until > Date.now()) {
       setSmartDisabledUntil(until);
-      // We only block the button for cooldown; no inline message.
     }
   }, []);
 
@@ -219,7 +221,6 @@ export function useSmartSearch() {
     return () => clearTimeout(id);
   }, [smartDisabledUntil]);
 
-  // Keep local notice in sync with quota changes (but we don't show local notices anymore)
   useEffect(() => {
     if (!smartDisabledUntil || smartDisabledUntil <= Date.now()) {
       setSmartBlockNotice((prev) =>
@@ -243,15 +244,15 @@ export function useSmartSearch() {
     if (q.length > MAX_LEN) q = q.slice(0, MAX_LEN);
     if (!q || q === lastSmartQueryRef.current || q.length < MIN_LEN) return;
 
-    // If local cooldown is active, only block the button; do not show inline message
     if (smartDisabledUntil && smartDisabledUntil > Date.now()) {
       return;
     }
 
     lastSmartQueryRef.current = q;
 
-    // Clear server notice if any
+    // Clear previous server notice and generic error for a new run
     setSmartBlockNotice((prev) => (prev?.kind === "server" ? null : prev));
+    setSmartGenericError(false);
 
     setSmartLoading(true);
     bumpLocalCooldown();
@@ -268,7 +269,7 @@ export function useSmartSearch() {
       try {
         data = text ? (JSON.parse(text) as SmartSearchResponse) : {};
       } catch {
-        // ignore parse failure; keep data as {}
+        // parsing failed — treat as generic error
       }
 
       const rid: string | undefined =
@@ -296,6 +297,7 @@ export function useSmartSearch() {
         setPackages(pkgs);
         setOtherPackages(others);
         setSmartBlockNotice(null);
+        setSmartGenericError(false);
 
         posthog.capture("smart_search_success", {
           query: q,
@@ -310,7 +312,7 @@ export function useSmartSearch() {
         return;
       }
 
-      // Blocked/unavailable
+      // Rate-limited/unavailable
       if (res.status === 429 || res.status === 503) {
         const retryAfterSec =
           typeof data.retryAfterSec === "number" && data.retryAfterSec > 0
@@ -324,7 +326,6 @@ export function useSmartSearch() {
 
         setSmartDisabledUntil(untilMs);
 
-        // Clear results and show inline block only for server rate limits
         setPackages([]);
         setOtherPackages([]);
 
@@ -352,40 +353,18 @@ export function useSmartSearch() {
             typeof data.userScoped === "boolean" ? data.userScoped : undefined,
         });
 
-        // Update quota info if available
-        setQuotaInfo((prev) => {
-          if (typeof allowedPerHourVal === "number") {
-            return {
-              allowedPerHour: allowedPerHourVal,
-              usedThisHour: prev?.usedThisHour,
-              remainingThisHour: prev?.remainingThisHour,
-              resetAtIso:
-                typeof data.resetAtIso === "string"
-                  ? data.resetAtIso
-                  : (prev?.resetAtIso ?? null),
-              userScoped:
-                typeof data.userScoped === "boolean"
-                  ? data.userScoped
-                  : prev?.userScoped,
-            };
-          }
-          return prev;
-        });
-
-        posthog.capture("smart_search_rate_limited", {
-          query: q,
-          rid,
-          code: res.status,
-          server_kind: serverKindVal,
-          retryAfterSec,
-        });
+        // Keep generic error off for rate limits
+        setSmartGenericError(false);
         return;
       }
 
-      // Other errors: clear server notice
+      // Other errors -> show generic inline notice
       setSmartBlockNotice(null);
+      setSmartGenericError(true);
     } catch (e) {
       console.error("Smart search failed:", e);
+      setSmartBlockNotice(null);
+      setSmartGenericError(true);
     } finally {
       setSmartLoading(false);
     }
@@ -396,7 +375,8 @@ export function useSmartSearch() {
 
     if (next) {
       setSmartMode(true);
-      // When entering Smart mode, do NOT show an inline message for local cooldown.
+      // Entering Smart mode: keep previous results and clear generic error
+      setSmartGenericError(false);
       return;
     }
 
@@ -407,6 +387,7 @@ export function useSmartSearch() {
     setOtherPackages([]);
     setSmartLoading(false);
     setSmartBlockNotice(null);
+    setSmartGenericError(false);
   };
 
   return {
@@ -441,8 +422,11 @@ export function useSmartSearch() {
       return s > 0 ? s : 0;
     }, [smartDisabledUntil]),
     smartDisabledUntilMs: smartDisabledUntil,
-    smartBlockNotice, // only set for server (hourly/daily) limits
+    smartBlockNotice, // only server (hourly/daily) limits
     quotaInfo,
     smartFeatureEnabled: SMART_ENABLED,
+
+    // generic error
+    smartGenericError,
   };
 }

@@ -35,6 +35,8 @@ interface SmartNoticesProps {
   smartBlockNotice: SmartBlockNotice;
   quotaInfo: QuotaInfo | null;
   onSwitchToClassic: () => void;
+  // NEW: generic error flag for unknown failures
+  smartGenericError?: boolean;
 }
 
 const SmartNotices = ({
@@ -42,39 +44,34 @@ const SmartNotices = ({
   smartBlockNotice,
   quotaInfo,
   onSwitchToClassic,
+  smartGenericError = false,
 }: SmartNoticesProps) => {
   if (!smartMode) return null;
 
-  // No inline message for local cooldown, only for server rate limits
+  // Server-side limits
   if (smartBlockNotice && smartBlockNotice.kind === "server") {
+    const tryAtIso =
+      smartBlockNotice.resetAtIso ||
+      new Date(smartBlockNotice.tryAgainAtMs).toISOString();
+    const tryAtClock = formatClockTime(tryAtIso);
+
+    const perHour = smartBlockNotice.allowedPerHour;
+
     const title =
       smartBlockNotice.serverKind === "daily_limit"
         ? "Daily AI capacity reached"
         : "Smart Search limit reached";
 
-    let introText = "";
-    if (smartBlockNotice.serverKind === "hourly_limit") {
-      introText = `You've used your hourly smart searches. To keep this free for everyone, the limit is currently ${
-        smartBlockNotice.allowedPerHour || "a few"
-      } per hour.`;
-    } else if (smartBlockNotice.serverKind === "daily_limit") {
-      introText = `Today's shared AI capacity is full. As a community project, I cap daily usage to manage costs.`;
-    }
-
-    // For hourly_limit, show the exact retry time
-    const showRetryTime =
-      smartBlockNotice.serverKind === "hourly_limit" &&
-      (smartBlockNotice.resetAtIso || smartBlockNotice.tryAgainAtMs);
-
-    const retryTime =
-      smartBlockNotice.resetAtIso ||
-      new Date(smartBlockNotice.tryAgainAtMs).toISOString();
-
     return (
       <div className="mb-4">
         <InlineNotice title={title} kind="warning">
-          <p className="mb-2">{introText}</p>
-
+          <p className="mb-2">
+            {smartBlockNotice.serverKind === "daily_limit"
+              ? "Today's shared AI capacity is full."
+              : `You've used your hourly smart searches${
+                  typeof perHour === "number" ? ` (limit ${perHour}/hour)` : ""
+                }.`}
+          </p>
           {smartBlockNotice.serverKind === "daily_limit" ? (
             <p className="mb-2">
               Please try again tomorrow. In the meantime,{" "}
@@ -89,46 +86,25 @@ const SmartNotices = ({
             </p>
           ) : (
             <p className="mb-2">
-              {showRetryTime ? (
-                <>
-                  Please try again at{" "}
-                  <strong>{formatClockTime(retryTime)}</strong>. In the
-                  meantime,{" "}
-                  <button
-                    type="button"
-                    className="text-[#9d7dff] underline hover:text-[#c4b3ff]"
-                    onClick={onSwitchToClassic}
-                  >
-                    Classic Filters
-                  </button>{" "}
-                  are unlimited.
-                </>
-              ) : (
-                <>
-                  Please try again later. In the meantime,{" "}
-                  <button
-                    type="button"
-                    className="text-[#9d7dff] underline hover:text-[#c4b3ff]"
-                    onClick={onSwitchToClassic}
-                  >
-                    Classic Filters
-                  </button>{" "}
-                  are unlimited.
-                </>
-              )}
+              Try again at <strong>{tryAtClock}</strong>. Meanwhile,{" "}
+              <button
+                type="button"
+                className="text-[#9d7dff] underline hover:text-[#c4b3ff]"
+                onClick={onSwitchToClassic}
+              >
+                Classic Filters
+              </button>{" "}
+              are unlimited.
             </p>
           )}
-
-          {/* Optional concise quota hint even when blocked */}
           {quotaInfo?.allowedPerHour !== undefined &&
-            quotaInfo.usedThisHour !== undefined && (
+            quotaInfo.remainingThisHour !== undefined &&
+            smartBlockNotice.serverKind === "hourly_limit" && (
               <p className="mb-0 text-[#c9c2e6]">
-                Used {quotaInfo.usedThisHour}/{quotaInfo.allowedPerHour}
+                Remaining this hour: {quotaInfo.remainingThisHour}. Resets{" "}
                 {quotaInfo.resetAtIso && (
                   <>
-                    {" "}
-                    this hour (resets around{" "}
-                    <strong>{formatClockTime(quotaInfo.resetAtIso)}</strong>).
+                    at <strong>{formatClockTime(quotaInfo.resetAtIso)}</strong>.
                   </>
                 )}
               </p>
@@ -138,26 +114,44 @@ const SmartNotices = ({
     );
   }
 
-  // Not blocked: concise quota reminder
+  // Generic unknown error (not blocked)
+  if (!smartBlockNotice && smartGenericError) {
+    return (
+      <div className="mb-4">
+        <InlineNotice kind="info">
+          <p className="mb-0">
+            Smart Search ran into an issue. Please use{" "}
+            <button
+              type="button"
+              className="text-[#9d7dff] underline hover:text-[#c4b3ff]"
+              onClick={onSwitchToClassic}
+            >
+              Classic Filters
+            </button>{" "}
+            for now while we work on a fix.
+          </p>
+        </InlineNotice>
+      </div>
+    );
+  }
+
+  // Not blocked: concise quota reminder (use lowkey for minimal footprint)
   if (
     !smartBlockNotice &&
     quotaInfo?.allowedPerHour &&
     typeof quotaInfo.remainingThisHour === "number"
   ) {
     return (
-      <div className="mb-4">
-        <InlineNotice kind="info" lowkey={true}>
-          <p className="mb-0">
-            {quotaInfo.remainingThisHour} smart searches remaining
-            {quotaInfo.resetAtIso && (
-              <>
-                {" "}
-                before reset at{" "}
-                <strong>{formatClockTime(quotaInfo.resetAtIso)}</strong>
-              </>
-            )}
-            .
-          </p>
+      <div className="mb-3">
+        <InlineNotice kind="info" lowkey>
+          {quotaInfo.remainingThisHour} smart searches remaining before reset
+          {quotaInfo.resetAtIso && (
+            <>
+              {" "}
+              at <strong>{formatClockTime(quotaInfo.resetAtIso)}</strong>
+            </>
+          )}
+          .
         </InlineNotice>
       </div>
     );
