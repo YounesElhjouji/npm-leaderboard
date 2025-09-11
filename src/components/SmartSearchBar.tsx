@@ -5,6 +5,10 @@ interface SmartSearchBarProps {
   loading: boolean;
   onSmartQueryChange: (value: string) => void;
   onRunSmartSearch: () => void;
+
+  // new
+  disabledSeconds?: number; // remaining seconds disabled (client or server cooldown)
+  showLimitsHint?: boolean;
 }
 
 const SparkleIcon = () => (
@@ -23,11 +27,21 @@ const SmartSearchBar = ({
   loading,
   onSmartQueryChange,
   onRunSmartSearch,
+  disabledSeconds = 0,
+  showLimitsHint = true,
 }: SmartSearchBarProps) => {
   const handleRun = () => {
     posthog.capture("smart_search_run", { query: smartQuery });
     onRunSmartSearch();
   };
+
+  const disabled =
+    loading || !smartQuery.trim() || (disabledSeconds && disabledSeconds > 0);
+
+  const buttonLabel =
+    disabled && disabledSeconds > 0
+      ? `Wait ${disabledSeconds}s…`
+      : "Run Smart Search";
 
   return (
     <div className="flex w-full flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -48,6 +62,12 @@ const SmartSearchBar = ({
           className="mt-1 w-full rounded-md border border-violet-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-violet-500"
           disabled={loading}
         />
+        {showLimitsHint && (
+          <p className="mt-1 text-xs text-[#a8a8a8]">
+            Tip: Smart Search may be limited to a few requests per hour. If you
+            see a rate-limit message, please wait briefly before trying again.
+          </p>
+        )}
       </div>
 
       {/* Button */}
@@ -58,12 +78,12 @@ const SmartSearchBar = ({
         <button
           type="button"
           onClick={handleRun}
-          disabled={loading || !smartQuery.trim()}
+          disabled={disabled}
           className="inline-flex items-center justify-center gap-2 rounded-md bg-violet-600 px-4 py-2 font-medium text-white transition-colors hover:bg-violet-500 disabled:opacity-60"
           title="Run Smart Search"
         >
           <SparkleIcon />
-          Run Smart Search
+          {buttonLabel}
         </button>
       </div>
     </div>

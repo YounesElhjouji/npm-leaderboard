@@ -20,6 +20,11 @@ interface FiltersProps {
   onToggleSmartMode: (value: boolean) => void;
   onSmartQueryChange: (value: string) => void;
   onRunSmartSearch: () => void;
+
+  // new
+  smartFeatureEnabled: boolean;
+  smartDisabledSeconds: number;
+  limitsHintEnabled: boolean;
 }
 
 const SparkleIcon = () => (
@@ -40,6 +45,9 @@ const Filters = (props: FiltersProps) => {
     smartQuery,
     onSmartQueryChange,
     onRunSmartSearch,
+    smartFeatureEnabled,
+    smartDisabledSeconds,
+    limitsHintEnabled,
   } = props;
 
   return (
@@ -54,25 +62,30 @@ const Filters = (props: FiltersProps) => {
             loading={props.loading}
             onSmartQueryChange={onSmartQueryChange}
             onRunSmartSearch={onRunSmartSearch}
+            disabledSeconds={smartDisabledSeconds}
+            showLimitsHint={limitsHintEnabled}
           />
         )}
       </div>
 
-      {/* Right: Toggle button */}
-      <div className="flex items-end">
-        <button
-          type="button"
-          onClick={() => onToggleSmartMode(!smartMode)}
-          className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${smartMode
-              ? "border-violet-500 text-violet-400 hover:bg-[#2b2240]"
-              : "border-violet-600 text-violet-500 hover:bg-[#211a33]"
+      {/* Right: Toggle button (hidden if feature gate off) */}
+      {smartFeatureEnabled && (
+        <div className="flex items-end">
+          <button
+            type="button"
+            onClick={() => onToggleSmartMode(!smartMode)}
+            className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+              smartMode
+                ? "border-violet-500 text-violet-400 hover:bg-[#2b2240]"
+                : "border-violet-600 text-violet-500 hover:bg-[#211a33]"
             }`}
-          title={smartMode ? "Use classic filters" : "Try Smart Search (AI)"}
-        >
-          <SparkleIcon />
-          {smartMode ? "Use Classic Filters" : "Try Smart Search (AI)"}
-        </button>
-      </div>
+            title={smartMode ? "Use classic filters" : "Try Smart Search (AI)"}
+          >
+            <SparkleIcon />
+            {smartMode ? "Use Classic Filters" : "Try Smart Search (AI)"}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
