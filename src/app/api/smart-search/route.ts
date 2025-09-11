@@ -172,7 +172,7 @@ export async function POST(request: Request) {
     }
 
     // Use secure server-side key, not NEXT_PUBLIC
-    const apiKey = process.env.NEXT_PUBLIC_PPLX_API_KEY;
+    const apiKey = process.env.PPLX_API_KEY;
     if (!apiKey) {
       console.error(
         JSON.stringify({
@@ -380,10 +380,10 @@ export async function POST(request: Request) {
       otherPackages = missing
         .map((n) => byName.get(n))
         .filter(Boolean) as Array<{
-          name: string;
-          description: string;
-          link: string;
-        }>;
+        name: string;
+        description: string;
+        link: string;
+      }>;
 
       console.info(
         JSON.stringify({
