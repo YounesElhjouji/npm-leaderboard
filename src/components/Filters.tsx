@@ -25,6 +25,8 @@ interface FiltersProps {
   smartFeatureEnabled: boolean;
   smartDisabledSeconds: number;
   limitsHintEnabled: boolean;
+  // optional: absolute timestamp millis when it will be re-enabled
+  smartDisabledUntilMs?: number | null;
 }
 
 const SparkleIcon = () => (
@@ -48,6 +50,7 @@ const Filters = (props: FiltersProps) => {
     smartFeatureEnabled,
     smartDisabledSeconds,
     limitsHintEnabled,
+    smartDisabledUntilMs,
   } = props;
 
   return (
@@ -64,6 +67,7 @@ const Filters = (props: FiltersProps) => {
             onRunSmartSearch={onRunSmartSearch}
             disabledSeconds={smartDisabledSeconds}
             showLimitsHint={limitsHintEnabled}
+            disabledUntilMs={smartDisabledUntilMs ?? null}
           />
         )}
       </div>

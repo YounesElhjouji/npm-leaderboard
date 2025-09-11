@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import clientPromise from "../../../../lib/mongodb";
-import crypto from "crypto";
 import {
   getRedis,
   normalizeQuery,

@@ -1,19 +1,22 @@
 import posthog from "posthog-js";
+import { formatClockTime } from "../utils/time";
 
 interface SmartSearchBarProps {
   smartQuery: string;
   loading: boolean;
   onSmartQueryChange: (value: string) => void;
   onRunSmartSearch: () => void;
-
-  // new
-  disabledSeconds?: number; // remaining seconds disabled (client or server cooldown)
+  disabledSeconds?: number;
   showLimitsHint?: boolean;
+  disabledUntilMs?: number | null;
 }
 
-const SparkleIcon = () => (
+const MAX_LEN = 160;
+const MIN_LEN = 6;
+
+const SparkleIcon = ({ className }: { className?: string }) => (
   <svg
-    className="h-4 w-4"
+    className={`h-4 w-4 ${className}`}
     viewBox="0 0 24 24"
     fill="currentColor"
     aria-hidden="true"
@@ -29,62 +32,92 @@ const SmartSearchBar = ({
   onRunSmartSearch,
   disabledSeconds = 0,
   showLimitsHint = true,
+  disabledUntilMs = null,
 }: SmartSearchBarProps) => {
+  const len = smartQuery.length;
+  const tooShort = len > 0 && len < MIN_LEN;
+  const tooLong = len > MAX_LEN; // Should not happen with maxLength
+
+  const overLimit = disabledSeconds > 0 || !!disabledUntilMs;
+
+  // Block the button when overLimit, but DO NOT change its visible label per requirement
+  const disabled =
+    loading || !smartQuery.trim() || smartQuery.length < MIN_LEN || overLimit;
+
+  const tryAgainAt =
+    disabledUntilMs && disabledUntilMs > Date.now()
+      ? formatClockTime(disabledUntilMs)
+      : null;
+
+  // Keep the label constant as "Run" even when disabled due to local cooldown
+  const buttonLabel = "Run";
+
+  const handleChange = (v: string) => {
+    onSmartQueryChange(v);
+  };
+
   const handleRun = () => {
+    if (disabled) return;
     posthog.capture("smart_search_run", { query: smartQuery });
     onRunSmartSearch();
   };
 
-  const disabled =
-    loading || !smartQuery.trim() || (disabledSeconds && disabledSeconds > 0);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !disabled) {
+      handleRun();
+    }
+  };
 
-  const buttonLabel =
-    disabled && disabledSeconds > 0
-      ? `Wait ${disabledSeconds}s…`
-      : "Run Smart Search";
+  // Determine if helper row should render at all
+  const shouldShowHelper = showLimitsHint || tooShort;
 
   return (
-    <div className="flex w-full flex-col gap-2 md:flex-row md:items-end md:justify-between">
-      {/* Input */}
-      <div className="flex-1">
-        <label
-          htmlFor="smartQuery"
-          className="text-sm font-medium text-[#d4d4d4]"
-        >
-          Smart Search (AI)
-        </label>
+    <div>
+      <label
+        htmlFor="smartQuery"
+        className="text-sm font-medium text-[#d4d4d4]"
+      >
+        Smart Search
+      </label>
+
+      {/* New Integrated Input Wrapper */}
+      <div className="mt-1 flex items-center gap-3 rounded-md border border-violet-700 bg-[#252526] px-3 py-1.5 focus-within:ring-2 focus-within:ring-violet-500">
+        <SparkleIcon className="flex-shrink-0 text-violet-400" />
         <input
           type="text"
           id="smartQuery"
           value={smartQuery}
-          onChange={(e) => onSmartQueryChange(e.target.value)}
-          placeholder="e.g., lightweight csv parser for Node 18 with TS types"
-          className="mt-1 w-full rounded-md border border-violet-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-violet-500"
+          onChange={(e) => handleChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Describe what you need..."
+          className="flex-1 border-none bg-transparent p-0 text-[#d4d4d4] placeholder:text-[#6a6a6a] focus:outline-none focus:ring-0"
           disabled={loading}
+          minLength={MIN_LEN}
+          maxLength={MAX_LEN}
+          autoComplete="off"
         />
-        {showLimitsHint && (
-          <p className="mt-1 text-xs text-[#a8a8a8]">
-            Tip: Smart Search may be limited to a few requests per hour. If you
-            see a rate-limit message, please wait briefly before trying again.
-          </p>
-        )}
-      </div>
-
-      {/* Button */}
-      <div className="md:ml-4">
-        <label className="invisible block text-sm font-medium md:visible">
-          &nbsp;
-        </label>
-        <button
-          type="button"
-          onClick={handleRun}
-          disabled={disabled}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-violet-600 px-4 py-2 font-medium text-white transition-colors hover:bg-violet-500 disabled:opacity-60"
-          title="Run Smart Search"
-        >
-          <SparkleIcon />
-          {buttonLabel}
-        </button>
+        <div className="flex flex-shrink-0 items-center gap-3">
+          <span
+            className={`font-mono text-xs ${
+              tooShort || tooLong ? "text-red-400" : "text-[#8e8e8e]"
+            }`}
+          >
+            {len}/{MAX_LEN}
+          </span>
+          <button
+            type="button"
+            onClick={handleRun}
+            disabled={disabled}
+            className="inline-flex h-[30px] items-center justify-center rounded bg-violet-600 px-3 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:opacity-60"
+            title={
+              overLimit && tryAgainAt
+                ? `Rate limited. You can try again at ${tryAgainAt}.`
+                : "Run Smart Search"
+            }
+          >
+            {buttonLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

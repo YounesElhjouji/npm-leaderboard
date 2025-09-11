@@ -5,7 +5,8 @@ import Filters from "../components/Filters";
 import PackageList from "../components/PackageList";
 import OtherPackageList from "../components/OtherPackageList";
 import posthog from "posthog-js";
-import Alert from "../components/Alert";
+import InlineNotice from "../components/InlineNotice";
+import { formatClockTime } from "../utils/time";
 
 const daysMapping: Record<string, string> = {
   "30": "last month",
@@ -35,12 +36,10 @@ const LOCAL_COOLDOWN_MS = Math.max(
     10,
   ) || 3000,
 );
-const TOASTS_ENABLED =
-  (process.env.NEXT_PUBLIC_SMART_SEARCH_TOASTS || "true").toLowerCase() ===
-  "true";
-const LIMITS_HINT_ENABLED =
-  (process.env.NEXT_PUBLIC_SMART_SEARCH_LIMITS_HINT || "true").toLowerCase() ===
-  "true";
+
+// Input limits
+const MAX_LEN = 160;
+const MIN_LEN = 6;
 
 export default function HomePage() {
   const [sortBy, setSortBy] = useState<SortBy>("growth");
@@ -65,11 +64,20 @@ export default function HomePage() {
   const [smartLoading, setSmartLoading] = useState(false);
   const [smartLoadingIndex, setSmartLoadingIndex] = useState(0);
 
-  // New: server-driven and local cooldown control
+  // Server-driven and local cooldown control
   const [smartDisabledUntil, setSmartDisabledUntil] = useState<number | null>(
     null,
   );
-  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+
+  // Unified inline block notice for Smart Search
+  // kind = "server" (HTTP 429) or "local" (client cooldown)
+  const [smartBlockNotice, setSmartBlockNotice] = useState<{
+    kind: "server" | "local";
+    tryAgainAtMs: number;
+    allowedPerHour?: number; // from server 429 payload
+    remaining?: number; // optional server field
+    resetAtIso?: string; // optional server field
+  } | null>(null);
 
   // Track page view on mount
   useEffect(() => {
@@ -89,7 +97,7 @@ export default function HomePage() {
     }
   }, []);
 
-  // Hydrate local cooldown from localStorage (so multiple tabs share state)
+  // Hydrate local cooldown from localStorage
   useEffect(() => {
     if (typeof window === "undefined") return;
     const tsRaw = localStorage.getItem("smart.lastRunAt");
@@ -99,6 +107,11 @@ export default function HomePage() {
     const until = last + LOCAL_COOLDOWN_MS;
     if (until > Date.now()) {
       setSmartDisabledUntil(until);
+      // Show inline message for local cooldown on load if still active
+      setSmartBlockNotice({
+        kind: "local",
+        tryAgainAtMs: until,
+      });
     }
   }, []);
 
@@ -108,12 +121,35 @@ export default function HomePage() {
     const remaining = smartDisabledUntil - Date.now();
     if (remaining <= 0) {
       setSmartDisabledUntil(null);
+      // Clear local block notice when cooldown ends (maintain server notice if any)
+      setSmartBlockNotice((prev) =>
+        prev && prev.kind === "local" ? null : prev,
+      );
       return;
     }
     const id = setTimeout(() => {
       setSmartDisabledUntil(null);
+      setSmartBlockNotice((prev) =>
+        prev && prev.kind === "local" ? null : prev,
+      );
     }, remaining);
     return () => clearTimeout(id);
+  }, [smartDisabledUntil]);
+
+  // Also reactively keep inline local block notice in sync with smartDisabledUntil
+  useEffect(() => {
+    if (smartDisabledUntil && smartDisabledUntil > Date.now()) {
+      // Only set if not overridden by a server block notice
+      setSmartBlockNotice((prev) => {
+        if (prev && prev.kind === "server") return prev;
+        return { kind: "local", tryAgainAtMs: smartDisabledUntil };
+      });
+    } else {
+      // Clear local notice if cooldown expired
+      setSmartBlockNotice((prev) =>
+        prev && prev.kind === "local" ? null : prev,
+      );
+    }
   }, [smartDisabledUntil]);
 
   // Debounce classic filters
@@ -182,25 +218,36 @@ export default function HomePage() {
     return s > 0 ? s : 0;
   }, [smartDisabledUntil]);
 
+  // Helpers for input length validation
+  const smartLen = smartQuery.length;
+  const smartTooShort = smartLen > 0 && smartLen < MIN_LEN;
+  const smartTooLong = smartLen > MAX_LEN;
+
   // Smart search: explicit trigger
   const runSmartSearch = async () => {
-    const q = smartQuery.trim();
-    if (!q || q === lastSmartQueryRef.current) return;
+    let q = smartQuery.trim();
+    if (smartTooLong) q = q.slice(0, MAX_LEN); // hard enforce max
+    if (!q || q === lastSmartQueryRef.current || q.length < MIN_LEN) return;
 
-    // Local cooldown gate
+    // If currently local rate-limited, block and keep inline message
     if (smartDisabledUntil && smartDisabledUntil > Date.now()) {
-      // Already disabled by cooldown
+      setPackages([]);
+      setOtherPackages([]);
+      setSmartBlockNotice({
+        kind: "local",
+        tryAgainAtMs: smartDisabledUntil,
+      });
       return;
     }
 
     lastSmartQueryRef.current = q;
 
-    // Reset banner for new run
-    setBannerMessage(null);
+    // Reset any previous server block notice for a new run
+    setSmartBlockNotice((prev) => (prev?.kind === "server" ? null : prev));
 
     // Start loading; keep list visible but show skeletons via loading flags
     setSmartLoading(true);
-    bumpLocalCooldown(); // prevent spam immediately
+    bumpLocalCooldown(); // prevent click spam immediately
 
     let rid: string | undefined;
     try {
@@ -235,44 +282,64 @@ export default function HomePage() {
         const until = Date.now() + retryAfter * 1000;
         setSmartDisabledUntil(until);
 
-        if (TOASTS_ENABLED) {
-          console.info(
-            `Rate limited. Please wait ${retryAfter}s before trying again.`,
-          );
-        }
+        // Clear results and show retry-at message (inline for server 429)
+        setPackages([]);
+        setOtherPackages([]);
+
+        const remaining: number | undefined =
+          typeof data?.remainingRequests === "number"
+            ? data.remainingRequests
+            : undefined;
+        const resetAtIso: string | undefined =
+          typeof data?.resetAtIso === "string" ? data.resetAtIso : undefined;
+        const allowedPerHour: number | undefined =
+          typeof data?.allowedPerHour === "number"
+            ? data.allowedPerHour
+            : undefined;
+
+        setSmartBlockNotice({
+          kind: "server",
+          tryAgainAtMs: until,
+          allowedPerHour,
+          remaining,
+          resetAtIso,
+        });
+
         posthog.capture("smart_search_rate_limited", {
           query: q,
           retryAfterSec: retryAfter,
           rid,
+          remaining,
+          resetAtIso,
+          allowedPerHour,
         });
         return; // Do not update lists on rate limit
       }
 
       if (res.status === 503) {
-        // Unavailable / circuit breaker
-        setBannerMessage(
-          "Smart Search is temporarily unavailable. Please use classic filters or try again later.",
-        );
-        posthog.capture("smart_search_unavailable", { query: q, rid });
+        const resetAtIso =
+          typeof data?.resetAtIso === "string" ? data.resetAtIso : undefined;
+
+        // Unavailable / circuit breaker: show inline unavailability message
+        setSmartBlockNotice({
+          kind: "server",
+          tryAgainAtMs: Date.now(), // used only for formatting fallback
+          resetAtIso,
+          allowedPerHour: data?.allowedPerHour,
+        });
         return; // Do not update lists
       }
 
       if (!res.ok) {
-        // Other errors
-        setBannerMessage(
-          "Smart Search failed. Please try again or use classic filters.",
-        );
-        posthog.capture("smart_search_error", {
-          query: q,
-          rid,
-          code: res.status,
-        });
+        // Other errors: clear any block notice and let user try again
+        setSmartBlockNotice(null);
         return;
       }
 
       // Success
       setPackages(data.packages || []);
       setOtherPackages(data.otherPackages || []);
+      setSmartBlockNotice(null);
 
       posthog.capture("smart_search_success", {
         query: q,
@@ -283,46 +350,46 @@ export default function HomePage() {
       });
     } catch (e) {
       console.error("Smart search failed:", e);
-      setBannerMessage(
-        "Smart Search encountered an error. Please try again shortly.",
-      );
-      posthog.capture("smart_search_error", {
-        query: smartQuery.trim(),
-        rid,
-        code: "client_exception",
-      });
+      // Keep existing content; inline notices cover UX
     } finally {
       setSmartLoading(false);
     }
   };
 
-  // Toggle between classic and smart modes
+  // Toggle between classic and smart modes (smooth, rational behavior)
   const handleToggleSmartMode = (next: boolean) => {
     if (!SMART_ENABLED) return;
+
     if (next) {
-      // Entering smart mode: keep current packages until user runs search
+      // Entering smart mode:
+      // - Keep current results (classic) until a smart search is run or a block is active
+      // - If a block (local cooldown) is active, show its inline notice immediately
       setSmartMode(true);
+      // If currently blocked locally, ensure notice is shown
+      if (smartDisabledUntil && smartDisabledUntil > Date.now()) {
+        setSmartBlockNotice({
+          kind: "local",
+          tryAgainAtMs: smartDisabledUntil,
+        });
+      }
       return;
     }
-    // Leaving smart mode: reset to initial classic state
+
+    // Leaving smart mode:
+    // - Clear smart query but do not nuke classic filters; classic effect will refetch if needed
+    // - Remove any smart block notices (they only apply to smart mode)
     setSmartMode(false);
     setSmartQuery("");
     lastSmartQueryRef.current = "";
-    setSortBy("growth");
-    setDependsOn("");
-    setDebouncedDependsOn("");
-    setKeywords("");
-    setDebouncedKeywords("");
-    setModified("");
     setOtherPackages([]);
-    setLoading(true); // classic effect will refetch
-    setBannerMessage(null);
+    setSmartLoading(false);
+    setSmartBlockNotice(null);
   };
 
-  // Title builder: show combined count in smart mode with meta.counts if available
+  // Title builder: show combined count in smart mode
   const buildTitle = () => {
     if (smartMode) {
-      if (smartLoading) return currentSmartMessage;
+      if (smartLoading) return smartLoadingMessages[smartLoadingIndex];
       const total = (packages?.length || 0) + (otherPackages?.length || 0); // fallback
       return `${total} npm packages found (Smart Search)`;
     }
@@ -371,12 +438,63 @@ export default function HomePage() {
           // new props
           smartFeatureEnabled={smartFeatureEnabled}
           smartDisabledSeconds={disabledSeconds}
-          limitsHintEnabled={LIMITS_HINT_ENABLED}
+          limitsHintEnabled={true}
+          smartDisabledUntilMs={smartDisabledUntil}
         />
 
-        {bannerMessage && (
+        {/* Inline block notice for Smart Search (shown even before a query) */}
+        {smartMode && smartBlockNotice && (
           <div className="mb-4">
-            <Alert kind="warning">{bannerMessage}</Alert>
+            <InlineNotice
+              title={
+                smartBlockNotice.kind === "server"
+                  ? "Smart Search limit reached"
+                  : "Smart Search temporarily paused"
+              }
+              kind="warning"
+            >
+              <p className="mb-2">
+                This open‑source project offers Smart Search with a limited
+                quota to control costs.
+                {typeof smartBlockNotice.allowedPerHour === "number" &&
+                  smartBlockNotice.allowedPerHour > 0 && (
+                    <>
+                      {" "}
+                      You get {smartBlockNotice.allowedPerHour} request
+                      {smartBlockNotice.allowedPerHour === 1 ? "" : "s"} per
+                      user per hour.
+                    </>
+                  )}
+              </p>
+              {smartBlockNotice.kind === "server" &&
+                typeof smartBlockNotice.remaining === "number" &&
+                smartBlockNotice.remaining <= 0 && (
+                  <p className="mb-2">
+                    You have 0 requests left in the current window.
+                  </p>
+                )}
+              <p className="mb-2">
+                Please try again at{" "}
+                <strong>
+                  {formatClockTime(
+                    smartBlockNotice.resetAtIso ||
+                      smartBlockNotice.tryAgainAtMs,
+                  )}
+                </strong>
+                .
+              </p>
+              <p className="mb-0">
+                In the meantime, you can continue using{" "}
+                <button
+                  type="button"
+                  className="text-[#9d7dff] underline hover:text-[#c4b3ff]"
+                  onClick={() => handleToggleSmartMode(false)}
+                >
+                  Classic Filters
+                </button>{" "}
+                (unlimited) to explore packages without restrictions.
+              </p>
+            </InlineNotice>
           </div>
         )}
 
@@ -384,22 +502,27 @@ export default function HomePage() {
           {buildTitle()}
         </h2>
 
-        {/* Main packages: in smart mode, pass loading from smartLoading to show skeletons */}
-        <PackageList
-          packages={packages}
-          loading={(smartMode && smartLoading) || (!smartMode && loading)}
-          showGrowth={false}
-        />
+        {/* Main packages: hide when blocked to show a clean message */}
+        {!smartBlockNotice && (
+          <PackageList
+            packages={packages}
+            loading={(smartMode && smartLoading) || (!smartMode && loading)}
+            showGrowth={false}
+          />
+        )}
 
         {/* Other Packages section (only visible after smart results are in, not during loading) */}
-        {smartMode && !smartLoading && otherPackages.length > 0 && (
-          <section className="mt-8">
-            <h3 className="mb-3 text-lg font-semibold text-[#d4d4d4]">
-              Smaller packages (not in leaderboard)
-            </h3>
-            <OtherPackageList items={otherPackages} />
-          </section>
-        )}
+        {smartMode &&
+          !smartLoading &&
+          !smartBlockNotice &&
+          otherPackages.length > 0 && (
+            <section className="mt-8">
+              <h3 className="mb-3 text-lg font-semibold text-[#d4d4d4]">
+                Smaller packages (not in leaderboard)
+              </h3>
+              <OtherPackageList items={otherPackages} />
+            </section>
+          )}
       </main>
 
       <footer className="bg-[#1e1e1e] py-2 text-center text-sm text-[#d4d4d4]">
