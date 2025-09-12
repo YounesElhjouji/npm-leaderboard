@@ -39,7 +39,7 @@ const InlineNotice = ({
     // Compact, borderless, minimal vertical space
     return (
       <div
-        className={`rounded-md ${k.lowBg} ${k.lowText} px-2 py-1 text-sm leading-6`}
+        className={`mt-[-4] rounded-md ${k.lowText} px-2 py-1 text-sm leading-6`}
         role="status"
         aria-live="polite"
       >

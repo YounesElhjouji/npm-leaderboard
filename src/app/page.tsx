@@ -55,13 +55,15 @@ export default function HomePage() {
 
     // NEW
     smartGenericError,
+    hasRunSmartSearch,
   } = useSmartSearch();
 
   const title = useMemo(() => {
-    if (smartMode) {
+    // Only show Smart title after a smart search has actually been initiated
+    if (smartMode && (smartLoading || hasRunSmartSearch)) {
       if (smartLoading) return smartLoadingMessages[smartLoadingIndex];
       const total = (packages?.length || 0) + (otherPackages?.length || 0);
-      return `${total} npm packages found (Smart Search)`;
+      return `${total} npm packages found`;
     }
     if (loading) return "Loading packages...";
     let t = `${packages.length} `;
@@ -83,6 +85,7 @@ export default function HomePage() {
   }, [
     smartMode,
     smartLoading,
+    hasRunSmartSearch,
     smartLoadingIndex,
     packages,
     otherPackages,
@@ -142,9 +145,6 @@ export default function HomePage() {
           !smartGenericError &&
           otherPackages.length > 0 && (
             <section className="mt-8">
-              <h3 className="mb-3 text-lg font-semibold text-[#d4d4d4]">
-                Smaller packages (not in leaderboard)
-              </h3>
               <OtherPackageList items={otherPackages} />
             </section>
           )}

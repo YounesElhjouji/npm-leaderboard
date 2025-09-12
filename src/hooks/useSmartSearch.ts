@@ -94,6 +94,7 @@ export function useSmartSearch() {
   const [smartQuery, setSmartQuery] = useState<string>("");
   const [smartLoading, setSmartLoading] = useState(false);
   const [smartLoadingIndex, setSmartLoadingIndex] = useState(0);
+  const [hasRunSmartSearch, setHasRunSmartSearch] = useState(false);
   const lastSmartQueryRef = useRef<string>("");
 
   // limits/quota
@@ -255,6 +256,7 @@ export function useSmartSearch() {
     setSmartGenericError(false);
 
     setSmartLoading(true);
+    setHasRunSmartSearch(true);
     bumpLocalCooldown();
 
     try {
@@ -386,6 +388,7 @@ export function useSmartSearch() {
     lastSmartQueryRef.current = "";
     setOtherPackages([]);
     setSmartLoading(false);
+    setHasRunSmartSearch(false);
     setSmartBlockNotice(null);
     setSmartGenericError(false);
   };
@@ -409,6 +412,7 @@ export function useSmartSearch() {
     setSmartQuery,
     runSmartSearch,
     smartLoading,
+    hasRunSmartSearch,
     smartLoadingIndex,
 
     // results
