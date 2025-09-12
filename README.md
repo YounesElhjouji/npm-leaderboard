@@ -110,7 +110,3 @@ For any inquiries or feature requests, feel free to reach out!
 ### ✅ **What's Next?**
 
 That's up to you! You request it, I work on it.
-
-```
-
-```
