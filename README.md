@@ -49,8 +49,6 @@ git clone https://github.com/YOUR_GITHUB_USERNAME/npm-leaderboard.git
 cd npm-leaderboard
 ```
 
-````
-
 ### **2️⃣ Install dependencies**
 
 ```sh
@@ -113,5 +111,6 @@ For any inquiries or feature requests, feel free to reach out!
 
 That's up to you! You request it, I work on it.
 
-````
+```
 
+```
