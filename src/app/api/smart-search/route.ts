@@ -30,7 +30,7 @@ interface NPMPackage {
   description: string;
 }
 
-const PPLX_API_URL = "https://api.perplexity.ai/chat/completionss";
+const PPLX_API_URL = "https://api.perplexity.ai/chat/completions";
 const DEFAULT_MODEL = "sonar";
 const PPLX_MODEL: string = process.env.PPLX_MODEL || DEFAULT_MODEL;
 

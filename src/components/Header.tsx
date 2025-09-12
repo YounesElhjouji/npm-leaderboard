@@ -24,7 +24,7 @@ export default async function Header() {
   return (
     <header className="border-b border-gray-700 bg-[#1e1e1e] py-4 text-[#d4d4d4] shadow-md">
       <div className="container mx-auto flex flex-col items-start px-4 md:flex-row md:justify-between">
-        <div className="w-full text-left">
+        <div className="w-full text-left md:w-2/3">
           <h1 className="text-3xl font-bold text-[#569CD6]">
             NPM Package Discovery & Leaderboard
           </h1>
@@ -37,7 +37,7 @@ export default async function Header() {
             now with semantic understanding.
           </p>
         </div>
-        <div className="mt-4 w-full text-right md:mt-0">
+        <div className="mt-4 w-full text-right md:mt-0 md:w-1/3">
           <p className="mb-1">
             Last sync: <span className="font-semibold">{formattedDate}</span>
           </p>
