@@ -45,7 +45,7 @@ This weekly sync ensures that the leaderboard remains accurate and up-to-date wi
 ### **1️⃣ Clone the repository**
 
 ```sh
-git clone https://github.com/YOUR_GITHUB_USERNAME/npm-leaderboard.git
+git clone https://github.com/YounesElhjouji/npm-leaderboard.git
 cd npm-leaderboard
 ```
 
@@ -69,7 +69,7 @@ REDIS_URL=redis://localhost:6379
 ```
 
 - **`MONGODB_URI`**: Your MongoDB connection string.
-- **`PPLX_API_KEY`**: Your API key from Perplexity AI. This is required to enable the AI-powered Smart Search feature. You can get a key from the [Perplexity AI Platform](https://www.perplexity.ai/platform).
+- **`PPLX_API_KEY`**: Your API key from Perplexity AI. This is required to enable the AI-powered Smart Search feature.
 - **`REDIS_URL`**: Your Redis connection string. This is required for Smart Search caching, rate-limiting, and cooldowns.
 
 #### Advanced Configuration (Optional)
