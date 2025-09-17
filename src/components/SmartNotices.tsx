@@ -68,9 +68,8 @@ const SmartNotices = ({
           <p className="mb-2">
             {smartBlockNotice.serverKind === "daily_limit"
               ? "Today's shared AI capacity is full."
-              : `You've used your hourly smart searches${
-                  typeof perHour === "number" ? ` (limit ${perHour}/hour)` : ""
-                }.`}
+              : `You've used your hourly smart searches${typeof perHour === "number" ? ` (limit ${perHour}/hour)` : ""
+              }.`}
           </p>
           {smartBlockNotice.serverKind === "daily_limit" ? (
             <p className="mb-2">
@@ -139,7 +138,8 @@ const SmartNotices = ({
   if (
     !smartBlockNotice &&
     quotaInfo?.allowedPerHour &&
-    typeof quotaInfo.remainingThisHour === "number"
+    typeof quotaInfo.remainingThisHour === "number" &&
+    quotaInfo?.remainingThisHour < 4
   ) {
     return (
       <div className="mb-3">
