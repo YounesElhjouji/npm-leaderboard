@@ -1,7 +1,9 @@
-import posthog from "posthog-js";
 import { SortBy } from "../types";
+import ClassicFilters from "./ClassicFilters";
+import SmartSearchBar from "./SmartSearchBar";
 
 interface FiltersProps {
+  // classic
   sortBy: SortBy;
   dependsOn: string;
   keywords: string;
@@ -11,109 +13,80 @@ interface FiltersProps {
   onDependsOnChange: (value: string) => void;
   onKeywordsChange: (value: string) => void;
   onModifiedChange: (value: string) => void;
+
+  // smart
+  smartMode: boolean;
+  smartQuery: string;
+  onToggleSmartMode: (value: boolean) => void;
+  onSmartQueryChange: (value: string) => void;
+  onRunSmartSearch: () => void;
+
+  // new
+  smartFeatureEnabled: boolean;
+  smartDisabledSeconds: number;
+  // optional: absolute timestamp millis when it will be re-enabled
+  smartDisabledUntilMs?: number | null;
 }
 
-const Filters = ({
-  sortBy,
-  dependsOn,
-  keywords,
-  modified,
-  loading,
-  onSortChange,
-  onDependsOnChange,
-  onKeywordsChange,
-  onModifiedChange,
-}: FiltersProps) => {
-  // Wrap sort change to capture event before calling the handler
-  const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newSort = e.target.value as SortBy;
-    posthog.capture("sort_change", { sort_by: newSort });
-    onSortChange(newSort);
-  };
+const SparkleIcon = () => (
+  <svg
+    className="h-4 w-4"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M11.5 2l1.7 4.7L18 8.5l-4.8 1.4L11.5 15l-1.7-5.1L5 8.5l4.8-1.8L11.5 2zM19 12l1 2.8L23 16l-3 1-.9 3L18 17l-3-1 3-1 .9-3zM4 13l1.2 3.1L8 17l-2.8.9L4 21l-1.1-3.1L0 17l2.9-.9L4 13z" />
+  </svg>
+);
 
-  const handleModifiedChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    onModifiedChange(e.target.value);
-  };
+const Filters = (props: FiltersProps) => {
+  const {
+    smartMode,
+    onToggleSmartMode,
+    smartQuery,
+    onSmartQueryChange,
+    onRunSmartSearch,
+    smartFeatureEnabled,
+    smartDisabledSeconds,
+    smartDisabledUntilMs,
+  } = props;
 
   return (
-    <div className="mb-6 flex flex-col gap-4 space-y-4 md:flex-row md:items-end md:justify-between md:space-y-0">
-      {/* Left Side - Sort Dropdown */}
-      <div className="flex flex-col space-y-1">
-        <label htmlFor="sort" className="text-sm font-medium text-[#d4d4d4]">
-          Sort by
-        </label>
-        <select
-          id="sort"
-          value={sortBy}
-          onChange={handleSortChange}
-          className="w-full rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6] md:w-auto"
-          disabled={loading}
-        >
-          <option value="downloads">Most Downloaded</option>
-          <option value="growth">Trending</option>
-          <option value="dependents">Most Dependents</option>
-        </select>
+    <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      {/* Left: either Classic or Smart */}
+      <div className="flex-1">
+        {!smartMode ? (
+          <ClassicFilters {...props} />
+        ) : (
+          <SmartSearchBar
+            smartQuery={smartQuery}
+            loading={props.loading}
+            onSmartQueryChange={onSmartQueryChange}
+            onRunSmartSearch={onRunSmartSearch}
+            disabledSeconds={smartDisabledSeconds}
+            disabledUntilMs={smartDisabledUntilMs ?? null}
+          />
+        )}
       </div>
 
-      {/* Right Side - Filters Group */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {/* Keyword Filter Input */}
-        <div className="flex flex-col space-y-1">
-          <label
-            htmlFor="keyword"
-            className="text-sm font-medium text-[#d4d4d4]"
+      {/* Right: Toggle button (hidden if feature gate off) */}
+      {smartFeatureEnabled && (
+        <div className="flex items-end">
+          <button
+            type="button"
+            onClick={() => onToggleSmartMode(!smartMode)}
+            className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+              smartMode
+                ? "border-violet-500 text-violet-400 hover:bg-[#2b2240]"
+                : "border-violet-600 text-violet-500 hover:bg-[#211a33]"
+            }`}
+            title={smartMode ? "Use classic filters" : "Try Smart Search (AI)"}
           >
-            Keywords
-          </label>
-          <input
-            type="text"
-            id="keywords"
-            value={keywords}
-            onChange={(e) => onKeywordsChange(e.target.value)}
-            placeholder="e.g., stream parse"
-            className="w-full rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6]"
-          />
+            <SparkleIcon />
+            {smartMode ? "Use Classic Filters" : "Try Smart Search (AI)"}
+          </button>
         </div>
-        {/* Dependency Filter Input */}
-        <div className="flex flex-col space-y-1">
-          <label
-            htmlFor="dependsOn"
-            className="text-sm font-medium text-[#d4d4d4]"
-          >
-            Depends on
-          </label>
-          <input
-            type="text"
-            id="dependsOn"
-            value={dependsOn}
-            onChange={(e) => onDependsOnChange(e.target.value)}
-            placeholder="e.g., react"
-            className="w-full rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6]"
-          />
-        </div>
-
-        {/* Updated Within Dropdown */}
-        <div className="flex flex-col space-y-1">
-          <label
-            htmlFor="modified"
-            className="text-sm font-medium text-[#d4d4d4]"
-          >
-            Updated within
-          </label>
-          <select
-            id="modified"
-            value={modified}
-            onChange={handleModifiedChange}
-            className="w-full rounded-md border border-gray-600 bg-[#252526] p-2 text-[#d4d4d4] focus:ring-2 focus:ring-[#569CD6]"
-            disabled={loading}
-          >
-            <option value="">All Time</option>
-            <option value="30">Last Month</option>
-            <option value="180">Last 6 Months</option>
-            <option value="365">Last Year</option>
-          </select>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

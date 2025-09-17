@@ -15,23 +15,29 @@ export default async function Header() {
 
   const formattedDate = lastSync
     ? new Date(lastSync).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
     : "N/A";
 
   return (
     <header className="border-b border-gray-700 bg-[#1e1e1e] py-4 text-[#d4d4d4] shadow-md">
       <div className="container mx-auto flex flex-col items-start px-4 md:flex-row md:justify-between">
-        <div className="w-full text-left">
-          <h1 className="text-3xl font-bold text-[#569CD6]">NPM Leaderboard</h1>
-          <p className="text-md mt-1">
-            Explore the most popular npm packages by downloads, growth, and
-            dependent repos.
+        <div className="w-full text-left md:w-2/3">
+          <h1 className="text-3xl font-bold text-[#569CD6]">
+            NPM Package Discovery & Leaderboard
+          </h1>
+          <p className="mt-1 text-base text-gray-300">
+            Uncover the best npm packages with{" "}
+            <span className="font-semibold text-[#8b5cf6]">
+              AI-powered Smart Search
+            </span>{" "}
+            and classic filters. Explore by downloads, growth, and dependents,
+            now with semantic understanding.
           </p>
         </div>
-        <div className="mt-4 w-full text-right md:mt-0">
+        <div className="mt-4 w-full text-right md:mt-0 md:w-1/3">
           <p className="mb-1">
             Last sync: <span className="font-semibold">{formattedDate}</span>
           </p>

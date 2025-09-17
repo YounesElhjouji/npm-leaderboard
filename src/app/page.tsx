@@ -1,9 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
-import { SortBy, NPMPackage } from "../types";
+import { useMemo } from "react";
 import Filters from "../components/Filters";
 import PackageList from "../components/PackageList";
-import posthog from "posthog-js";
+import OtherPackageList from "../components/OtherPackageList";
+import SmartNotices from "../components/SmartNotices";
+import { useSmartSearch } from "../hooks/useSmartSearch";
 
 const daysMapping: Record<string, string> = {
   "30": "last month",
@@ -11,123 +12,142 @@ const daysMapping: Record<string, string> = {
   "365": "last year",
 };
 
+const smartLoadingMessages = [
+  "Thinking deeply about your question…",
+  "Checking the sources…",
+  "Pondering profoundly…",
+  "Exploring the npm universe…",
+  "Comparing trade‑offs…",
+];
+
 export default function HomePage() {
-  const [sortBy, setSortBy] = useState<SortBy>("growth");
-  const [dependsOn, setDependsOn] = useState<string>("");
-  const [debouncedDependsOn, setDebouncedDependsOn] =
-    useState<string>(dependsOn);
-  const [keywords, setKeywords] = useState<string>("");
-  const [debouncedKeywords, setDebouncedKeywords] = useState<string>(keywords);
+  const {
+    // classic
+    sortBy,
+    setSortBy,
+    dependsOn,
+    setDependsOn,
+    keywords,
+    setKeywords,
+    modified,
+    setModified,
+    loading,
 
-  // New state for modified filter (number of days)
-  const [modified, setModified] = useState<string>("");
+    // smart
+    smartMode,
+    handleToggleSmartMode,
+    smartQuery,
+    setSmartQuery,
+    runSmartSearch,
+    smartLoading,
+    smartLoadingIndex,
 
-  const [packages, setPackages] = useState<NPMPackage[]>([]);
-  const [loading, setLoading] = useState(true);
+    // results
+    packages,
+    otherPackages,
 
-  // Track page view on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      posthog.capture("page_view", { path: window.location.pathname });
+    // limits and quota
+    smartDisabledSeconds,
+    smartDisabledUntilMs,
+    smartBlockNotice,
+    quotaInfo,
+    smartFeatureEnabled,
+
+    // NEW
+    smartGenericError,
+    hasRunSmartSearch,
+  } = useSmartSearch();
+
+  const title = useMemo(() => {
+    // Only show Smart title after a smart search has actually been initiated
+    if (smartMode && (smartLoading || hasRunSmartSearch)) {
+      if (smartLoading) return smartLoadingMessages[smartLoadingIndex];
+      const total = (packages?.length || 0) + (otherPackages?.length || 0);
+      return `${total} npm packages found`;
     }
-  }, []);
-
-  // Debounce the dependsOn value
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedDependsOn(dependsOn);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [dependsOn]);
-
-  // Debounce the keywords value
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedKeywords(keywords);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [keywords]);
-
-  // Fetch packages based on search term, sort criteria, and modified filter
-  useEffect(() => {
-    async function fetchPackages() {
-      setLoading(true);
-      try {
-        // Build query URL
-        let url = `/api/packages?sortBy=${sortBy}&dependsOn=${debouncedDependsOn}&keywords=${debouncedKeywords}`;
-        if (modified) {
-          url += `&modified=${modified}`;
-        }
-        const res = await fetch(url);
-        const data = await res.json();
-        setPackages(data.packages);
-      } catch (error) {
-        console.error("Failed to fetch packages:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchPackages();
-  }, [sortBy, debouncedDependsOn, debouncedKeywords, modified]);
-
-  // Track search events with PostHog when the debounced search term changes
-  useEffect(() => {
-    if (!loading && debouncedDependsOn && typeof window !== "undefined") {
-      posthog.capture("search", { search_term: debouncedDependsOn });
-    }
-  }, [debouncedDependsOn, loading]);
-
-  // Function to generate the dynamic title
-  // Function to generate the dynamic title with the new format
-  const generateTitle = () => {
-    let title = `${packages.length} `;
-
-    // Add the ranking type (most downloaded, most relied-upon, etc.)
-    if (sortBy === "growth") {
-      title += "fastest growing ";
-    } else if (sortBy === "downloads") {
-      title += "most downloaded ";
-    } else if (sortBy === "dependents") {
-      title += "most relied-upon ";
-    }
-
-    title += "npm packages";
-
-    // Handle different combinations of filters
-    if (debouncedDependsOn && modified) {
-      // Both filters are set
-      title += ` that depend on '${debouncedDependsOn}' and have been updated in the ${daysMapping[modified]}`;
-    } else if (debouncedDependsOn) {
-      // Only dependency filter is set
-      title += ` that depend on '${debouncedDependsOn}'`;
+    if (loading) return "Loading packages...";
+    let t = `${packages.length} `;
+    t +=
+      sortBy === "growth"
+        ? "fastest growing "
+        : sortBy === "downloads"
+          ? "most downloaded "
+          : "most relied-upon ";
+    t += "npm packages";
+    if (dependsOn && modified) {
+      t += ` that depend on '${dependsOn}' and have been updated in the ${daysMapping[modified]}`;
+    } else if (dependsOn) {
+      t += ` that depend on '${dependsOn}'`;
     } else if (modified) {
-      // Only time period filter is set
-      title += ` that have been updated in the ${daysMapping[modified]}`;
+      t += ` that have been updated in the ${daysMapping[modified]}`;
     }
-
-    return title;
-  };
+    return t;
+  }, [
+    smartMode,
+    smartLoading,
+    hasRunSmartSearch,
+    smartLoadingIndex,
+    packages,
+    otherPackages,
+    loading,
+    sortBy,
+    dependsOn,
+    modified,
+  ]);
 
   return (
     <div className="min-h-screen bg-[#1e1e1e] text-[#d4d4d4]">
       <main className="container mx-auto px-4 py-6">
         <Filters
+          // classic
           sortBy={sortBy}
           dependsOn={dependsOn}
           keywords={keywords}
           modified={modified}
-          loading={loading}
+          loading={smartMode ? smartLoading : loading}
           onSortChange={setSortBy}
           onDependsOnChange={setDependsOn}
           onKeywordsChange={setKeywords}
           onModifiedChange={setModified}
+          // smart
+          smartMode={smartMode && smartFeatureEnabled}
+          smartQuery={smartQuery}
+          onToggleSmartMode={handleToggleSmartMode}
+          onSmartQueryChange={setSmartQuery}
+          onRunSmartSearch={runSmartSearch}
+          // limits UI
+          smartFeatureEnabled={smartFeatureEnabled}
+          smartDisabledSeconds={smartDisabledSeconds}
+          smartDisabledUntilMs={smartDisabledUntilMs}
         />
 
-        <h2 className="mb-4 text-xl font-semibold text-[#d4d4d4]">
-          {loading ? "Loading packages..." : generateTitle()}
-        </h2>
+        <SmartNotices
+          smartMode={smartMode}
+          smartBlockNotice={smartBlockNotice}
+          quotaInfo={quotaInfo}
+          onSwitchToClassic={() => handleToggleSmartMode(false)}
+          smartGenericError={smartGenericError}
+        />
 
-        <PackageList packages={packages} loading={loading} showGrowth={false} />
+        <h2 className="mb-4 text-xl font-semibold text-[#d4d4d4]">{title}</h2>
+
+        {!smartBlockNotice && !smartGenericError && (
+          <PackageList
+            packages={packages}
+            loading={(smartMode && smartLoading) || (!smartMode && loading)}
+            showGrowth={false}
+          />
+        )}
+
+        {smartMode &&
+          !smartLoading &&
+          !smartBlockNotice &&
+          !smartGenericError &&
+          otherPackages.length > 0 && (
+            <section className="mt-8">
+              <OtherPackageList items={otherPackages} />
+            </section>
+          )}
       </main>
 
       <footer className="bg-[#1e1e1e] py-2 text-center text-sm text-[#d4d4d4]">
