@@ -9,7 +9,7 @@ A web application that ranks and tracks the most popular npm packages based on d
   - 🚀 **Trending** (Average weekly percentage growth)
   - 🔗 **Most Dependents** (Repos that rely on it)
 - **Filter by dependencies**: Search for packages that depend on a specific package (e.g., `react`).
-- **🧠 AI-Powered Smart Search**: Find packages using natural language. Includes Redis-backed caching, rate-limiting, and abuse prevention.
+- **🧠 AI-Powered Smart Search**: Find packages using natural language.
 - **Dark Mode by Default** 🌙
 - **Fast and lightweight**: Built with **Next.js**, **MongoDB**, and **Redis**.
 
