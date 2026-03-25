@@ -13,7 +13,7 @@
     "@vercel/analytics": "^1.5.0",
     "crypto": "^1.0.1",
     "mongodb": "^6.13.0",
-    "next": "15.1.7",
+    "next": "15.1.11",
     "posthog-js": "^1.223.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
