@@ -1,3 +1,5 @@
+
+
 # NPM Leaderboard
 
 A web application that ranks and tracks the most popular npm packages based on downloads, fastest-growing trends, and the number of dependents.
@@ -38,7 +40,7 @@ This weekly sync ensures that the leaderboard remains accurate and up-to-date wi
 
 ### **Prerequisites**
 
-- Node.js (`>=16.x`)
+- Node.js (`>=18.18.0`)
 - MongoDB (running locally or via cloud like MongoDB Atlas)
 - Redis (running locally or via cloud like Upstash)
 
